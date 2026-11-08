@@ -1,0 +1,67 @@
+commit 6f03c1c4cedbf07ee7e46971b0d84b6bd69e1c78
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 06:14:05 -0500
+
+    Implement M4 background corpus builds and tests
+
+ CMakeLists.txt                    |   1 +
+ DESIGN.md                         |  67 +++++-
+ README.md                         |  44 ++++
+ include/aiws/build_controller.hpp |  49 +++++
+ include/aiws/gui/main_window.hpp  |  16 +-
+ include/aiws/gui/resettable.hpp   |   2 +-
+ src/build_controller.cpp          | 148 +++++++++++++
+ src/chunker.cpp                   |  78 +++++++
+ src/context_builder.cpp           |  64 ++++++
+ src/context_widget.cpp            | 101 +++++++++
+ src/corpus_index.cpp              | 113 ++++++++++
+ src/document.cpp                  |  14 ++
+ src/main.cpp                      |  51 +++++
+ src/main_window.cpp               | 409 ++++++++++++++++++++++++++++++++++++
+ src/processing_core.cpp           | 172 +++++++++++++++
+ src/retrieval_engine.cpp          | 131 ++++++++++++
+ src/search_result_model.cpp       |  94 +++++++++
+ src/search_widget.cpp             | 171 +++++++++++++++
+ src/term_inspector_widget.cpp     | 100 +++++++++
+ src/text_processor.cpp            | 133 ++++++++++++
+ src/workspace.cpp                 |  19 ++
+ src/workspace_widget.cpp          | 109 ++++++++++
+ tests/student_tests.cpp           | 432 +++++++++++++++++++++++++++++++++++++-
+ 23 files changed, 2513 insertions(+), 5 deletions(-)
+
+commit 129759dca2047e6e3bb516788ac7db7e055f4d32
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-10-28 23:59:27 -0400
+
+    Add M4 starter and design note
+
+ .gitignore                                 |   3 +
+ CMakeLists.txt                             |  57 +++++++++++
+ DESIGN.md                                  |   3 +
+ DESIGN_NOTE.md                             |  26 +++++
+ STARTER_README.pdf                         | Bin 0 -> 39600 bytes
+ data/public/doc_ai.txt                     |   3 +
+ data/public/doc_retrieval.txt              |   3 +
+ data/public/doc_systems.txt                |   3 +
+ data/public/queries.txt                    |   4 +
+ include/aiws/chunker.hpp                   |  25 +++++
+ include/aiws/chunking_strategy.hpp         |  18 ++++
+ include/aiws/context_builder.hpp           |  13 +++
+ include/aiws/context_strategy.hpp          |  17 +++
+ include/aiws/corpus_index.hpp              |  36 +++++++
+ include/aiws/document.hpp                  |  22 ++++
+ include/aiws/gui/context_widget.hpp        |  75 ++++++++++++++
+ include/aiws/gui/main_window.hpp           | 159 +++++++++++++++++++++++++++++
+ include/aiws/gui/resettable.hpp            |  22 ++++
+ include/aiws/gui/search_result_model.hpp   |  84 +++++++++++++++
+ include/aiws/gui/search_widget.hpp         | 105 +++++++++++++++++++
+ include/aiws/gui/term_inspector_widget.hpp |  81 +++++++++++++++
+ include/aiws/gui/workspace_widget.hpp      | 101 ++++++++++++++++++
+ include/aiws/processing_core.hpp           |  53 ++++++++++
+ include/aiws/processing_types.hpp          |  38 +++++++
+ include/aiws/retrieval_engine.hpp          |  18 ++++
+ include/aiws/retrieval_strategy.hpp        |  20 ++++
+ include/aiws/text_processor.hpp            |  29 ++++++
+ include/aiws/workspace.hpp                 |  19 ++++
+ tests/student_tests.cpp                    |   2 +
+ 29 files changed, 1039 insertions(+)
