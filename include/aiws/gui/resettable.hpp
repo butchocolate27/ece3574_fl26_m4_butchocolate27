@@ -16,7 +16,7 @@ public:
     /**
      * @brief Restores the component to its initial application state.
      */
-    virtual void reset() = 0;
+    virtual void reset() = 0; // Applied by specific Widgets.
 };
 
 }  // namespace aiws::gui

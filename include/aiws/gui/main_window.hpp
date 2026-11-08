@@ -2,12 +2,15 @@
 
 #include <QMainWindow>
 
+#include "aiws/build_controller.hpp"
 #include "aiws/processing_core.hpp"
 #include "aiws/workspace.hpp"
 
+class QCloseEvent;
 class QLabel;
 class QPushButton;
 class QString;
+class QTimer;
 class QWidget;
 
 namespace aiws::gui {
@@ -43,6 +46,8 @@ public:
      * @param parent Optional Qt parent widget.
      */
     explicit MainWindow(QWidget* parent = nullptr);
+    explicit MainWindow(std::unique_ptr<BuildController> builds, QWidget* parent = nullptr);
+    ~MainWindow() override;
 
     /**
      * @brief Registers the callback invoked when the user requests Exit.
@@ -65,10 +70,14 @@ public:
      */
     void set_build_delay_ms(int ms_per_document);
 
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
     // Everything below this line is the M3 design. In M4 it is yours to
     // change: add, remove, or redesign private members, slots, and helpers.
 
 private slots:
+    void poll_build();
     /** @brief Handles a request to select and add a document to the workspace. */
     void add_document();
 
@@ -143,7 +152,12 @@ private:
     void clear_processing_outputs();
 
     Workspace workspace_;
-    ProcessingCore processing_core_;
+    std::unique_ptr<ProcessingCore> processing_core_;
+    std::unique_ptr<BuildController> builds_;
+    QTimer* build_timer_{nullptr};
+    std::uint64_t workspace_version_{0};
+    int build_delay_ms_{0};
+    bool closing_{false};
     bool corpus_current_{false};
     ExitCallback exit_callback_{nullptr};
 
