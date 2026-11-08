@@ -28,7 +28,7 @@ MainWindow::MainWindow(QWidget* parent)
     : MainWindow(std::make_unique<BuildController>(), parent) {}
 
 MainWindow::MainWindow(std::unique_ptr<BuildController> builds, QWidget* parent)
-    : QMainWindow(parent), builds_(std::move(builds)) {
+    : QMainWindow(parent), builds_(std::move(builds)), ipc_(std::make_unique<IpcServer>(this)) {
     if (!builds_) {
         throw std::invalid_argument("A build controller is required.");
     }
@@ -144,6 +144,13 @@ void MainWindow::set_build_delay_ms(int ms_per_document) {
     build_delay_ms_ = std::max(0, ms_per_document);
 }
 
+bool MainWindow::start_ipc_server(const QString& path, QString& error) {
+    std::string reason;
+    const bool started = ipc_->start(path.toStdString(), reason);
+    error = QString::fromStdString(reason);
+    return started;
+}
+
 void MainWindow::add_document() {
     const QString path = QFileDialog::getOpenFileName(
         this, "Add Document", QString(),
@@ -168,20 +175,29 @@ bool MainWindow::add_document_file(const QString& path) {
     if (file.error() != QFileDevice::NoError) {
         return false;
     }
+    add_document_text(id, QString::fromUtf8(bytes));
+    return true;
+}
+
+void MainWindow::add_document_text(const QString& path, const QString& text) {
+    if (closing_) {
+        return;
+    }
+    const QFileInfo info(path);
+    const QString id = info.absoluteFilePath();
     for (const Document& document : workspace_.documents()) {
         if (document.id() == id.toStdString()) {
             status_label_->setText("Document already added.");
-            return true;
+            return;
         }
     }
 
     workspace_.add_document(Document(id.toStdString(), info.fileName().toStdString(),
-                                     QString::fromUtf8(bytes).toStdString()));
+                                     text.toStdString()));
     ++workspace_version_;
     invalidate_corpus();
     workspace_widget_->add_document(info.fileName());
     status_label_->setText("Document added: " + info.fileName());
-    return true;
 }
 
 void MainWindow::build_corpus() {
@@ -202,43 +218,46 @@ void MainWindow::build_corpus() {
 
 void MainWindow::poll_build() {
     BuildOutcome outcome;
-    if (!builds_->poll(outcome)) {
-        return;
-    }
-    build_timer_->stop();
-    if (closing_) {
-        close();
-        return;
-    }
-
-    bool current = outcome.workspace_version == workspace_version_;
+    if (builds_->poll(outcome) && !closing_) {
+        bool current = outcome.workspace_version == workspace_version_;
 #ifdef AIWS_FAULT_ACCEPT_STALE
-    // Deliberately accept a completed corpus from an older Workspace.
-    current = true;
+        // Deliberately accept a completed corpus from an older Workspace.
+        current = true;
 #endif
-    if (current && !outcome.error.empty()) {
-        status_label_->setText("Build failed: " + QString::fromStdString(outcome.error));
-        workspace_widget_->set_corpus_status("Corpus: Not built");
-    } else if (current && !outcome.cancelled && outcome.corpus) {
-        processing_core_ = std::move(outcome.corpus);
-        corpus_current_ = true;
-        clear_processing_outputs();
-        workspace_widget_->set_corpus_status(
-            "Corpus: " + QString::number(processing_core_->chunk_count()) + " chunks");
-        status_label_->setText("Corpus built.");
-    } else {
-        status_label_->setText("Build discarded; workspace changed.");
+        if (current && !outcome.error.empty()) {
+            status_label_->setText("Build failed: " + QString::fromStdString(outcome.error));
+            workspace_widget_->set_corpus_status("Corpus: Not built");
+        } else if (current && !outcome.cancelled && outcome.corpus) {
+            processing_core_ = std::move(outcome.corpus);
+            corpus_current_ = true;
+            clear_processing_outputs();
+            workspace_widget_->set_corpus_status(
+                "Corpus: " + QString::number(processing_core_->chunk_count()) + " chunks");
+            status_label_->setText("Corpus built.");
+        } else {
+            status_label_->setText("Build discarded; workspace changed.");
+        }
+        update_action_states();
     }
-    update_action_states();
+    if (closing_) {
+        ipc_->poll_stop();
+        if (!builds_->busy() && !ipc_->running()) {
+            build_timer_->stop();
+            close();
+        }
+    } else if (!builds_->busy()) {
+        build_timer_->stop();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
     closing_ = true;
-    builds_->request_cancel();
+    ipc_->request_stop();
+    ipc_->poll_stop();
     invalidate_corpus();
     centralWidget()->setEnabled(false);
-    if (builds_->busy()) {
-        status_label_->setText("Stopping build...");
+    if (builds_->busy() || ipc_->running()) {
+        status_label_->setText("Stopping background work...");
         event->ignore();
         build_timer_->start();
     } else {

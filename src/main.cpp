@@ -1,4 +1,5 @@
 #include "aiws/gui/main_window.hpp"
+#include "aiws/ipc_protocol.hpp"
 
 #include <QApplication>
 #include <QCommandLineOption>
@@ -34,6 +35,10 @@ int main(int argc, char* argv[]) {
     const QCommandLineOption delay_option(
         "build-delay-ms", "Extra build time per document in milliseconds.", "N", "0");
     parser.addOption(delay_option);
+    const QCommandLineOption socket_option(
+        "ipc-socket", "Unix socket path for Remote Add.", "PATH",
+        QString::fromStdString(aiws::ipc::default_socket_path()));
+    parser.addOption(socket_option);
     parser.process(app);
     bool valid_delay = false;
     const int delay_ms = parser.value(delay_option).toInt(&valid_delay);
@@ -44,6 +49,11 @@ int main(int argc, char* argv[]) {
 
     aiws::gui::MainWindow window;
     window.set_build_delay_ms(delay_ms);
+    QString error;
+    if (!window.start_ipc_server(parser.value(socket_option), error)) {
+        std::fprintf(stderr, "Could not start Remote Add: %s\n", error.toUtf8().constData());
+        return 1;
+    }
     window.set_exit_callback(&confirm_exit); // Set up window
     window.show();
 

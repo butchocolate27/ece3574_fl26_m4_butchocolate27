@@ -27,8 +27,14 @@ target_link_libraries(aiws_m2 PUBLIC Threads::Threads)
 target_compile_options(aiws_m2 PRIVATE -Wall -Wextra -Wpedantic)
 
 # Everything except main(), so tests can link the application code.
+add_library(aiws_ipc STATIC src/ipc_protocol.cpp)
+target_include_directories(aiws_ipc PUBLIC include)
+target_link_libraries(aiws_ipc PUBLIC Threads::Threads)
+target_compile_options(aiws_ipc PRIVATE -Wall -Wextra -Wpedantic)
+
 add_library(aiws_app STATIC
     src/build_controller.cpp
+    src/ipc_server.cpp
     src/main_window.cpp
     src/workspace_widget.cpp
     src/search_widget.cpp
@@ -44,15 +50,26 @@ add_library(aiws_app STATIC
     include/aiws/gui/search_result_model.hpp
 )
 target_include_directories(aiws_app PUBLIC include)
-target_link_libraries(aiws_app PUBLIC aiws_m2 Qt6::Widgets)
+target_link_libraries(aiws_app PUBLIC aiws_m2 aiws_ipc Qt6::Widgets)
 target_compile_options(aiws_app PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(ai_workspace_m4 src/main.cpp)
 target_link_libraries(ai_workspace_m4 PRIVATE aiws_app)
 target_compile_options(ai_workspace_m4 PRIVATE -Wall -Wextra -Wpedantic)
 
+add_executable(aiws_send tools/aiws_send.cpp)
+target_link_libraries(aiws_send PRIVATE aiws_ipc Qt6::Core)
+target_compile_options(aiws_send PRIVATE -Wall -Wextra -Wpedantic)
+
 enable_testing()
 add_executable(student_tests tests/student_tests.cpp)
 target_link_libraries(student_tests PRIVATE aiws_app Qt6::Test)
 add_test(NAME student_tests COMMAND student_tests)
 set_tests_properties(student_tests PROPERTIES TIMEOUT 60 ENVIRONMENT QT_QPA_PLATFORM=offscreen)
+
+add_executable(ipc_tests tests/ipc_tests.cpp)
+target_link_libraries(ipc_tests PRIVATE aiws_app Qt6::Test)
+target_compile_options(ipc_tests PRIVATE -Wall -Wextra -Wpedantic)
+add_dependencies(ipc_tests aiws_send)
+add_test(NAME ipc_tests COMMAND ipc_tests)
+set_tests_properties(ipc_tests PROPERTIES TIMEOUT 60 ENVIRONMENT QT_QPA_PLATFORM=offscreen)

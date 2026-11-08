@@ -3,6 +3,7 @@
 #include <QMainWindow>
 
 #include "aiws/build_controller.hpp"
+#include "aiws/ipc_server.hpp"
 #include "aiws/processing_core.hpp"
 #include "aiws/workspace.hpp"
 
@@ -69,6 +70,7 @@ public:
      * @param ms_per_document Delay in milliseconds (the --build-delay-ms value).
      */
     void set_build_delay_ms(int ms_per_document);
+    bool start_ipc_server(const QString& path, QString& error);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -78,6 +80,7 @@ protected:
 
 private slots:
     void poll_build();
+    void add_document_text(const QString& path, const QString& text);
     /** @brief Handles a request to select and add a document to the workspace. */
     void add_document();
 
@@ -154,6 +157,7 @@ private:
     Workspace workspace_;
     std::unique_ptr<ProcessingCore> processing_core_;
     std::unique_ptr<BuildController> builds_;
+    std::unique_ptr<IpcServer> ipc_;
     QTimer* build_timer_{nullptr};
     std::uint64_t workspace_version_{0};
     int build_delay_ms_{0};
