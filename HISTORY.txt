@@ -1,3 +1,32 @@
+commit eee0c06fb9dc1914036d3e632627c26d3ff4d369
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 06:29:16 -0500
+
+    Implement CR-1 Remote Add and socket tests
+
+ CMakeLists.txt                   |  19 +-
+ DESIGN.md                        | 119 ++++++------
+ README.md                        |  91 +++++++---
+ include/aiws/gui/main_window.hpp |   4 +
+ include/aiws/ipc_protocol.hpp    |  35 ++++
+ include/aiws/ipc_server.hpp      |  36 ++++
+ src/ipc_protocol.cpp             | 192 ++++++++++++++++++++
+ src/ipc_server.cpp               | 172 ++++++++++++++++++
+ src/main.cpp                     |  10 ++
+ src/main_window.cpp              |  83 +++++----
+ tests/ipc_tests.cpp              | 378 +++++++++++++++++++++++++++++++++++++++
+ tools/aiws_send.cpp              |  49 +++++
+ 12 files changed, 1073 insertions(+), 115 deletions(-)
+
+commit b6a73832dfa587ebd3b7c11387fcc633242ec4d4
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 06:14:12 -0500
+
+    Record M4 development history
+
+ HISTORY.txt | 67 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+
 commit 6f03c1c4cedbf07ee7e46971b0d84b6bd69e1c78
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-08 06:14:05 -0500
