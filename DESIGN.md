@@ -70,11 +70,15 @@ OpenAI Codex helped with coding and debugging.
 
 ## Pair programming log
 
+The Zoom meeting ran from 13:30 to 14:00 on November 8, 2026. We spent
+15 minutes on each project and switched roles at 13:45.
+
 ### Session 1 - Gary Jia's code
 
 - Partner: Kodela, Varshitha.
 - Date: November 8, 2026.
-- Time: 13:30-13:50, 20 minutes.
+- Time: 13:30-13:45, 15 minutes.
+- Driver: Gary Jia. Navigator: Kodela, Varshitha.
 - Format: Zoom.
 - Code discussed: `tests/ipc_tests.cpp`, especially
   `unreadable_remote_file_keeps_current_corpus`.
@@ -91,17 +95,19 @@ available. We also discussed waiting for Search to become enabled after the
 background build, processing queued window calls, and searching again after
 the rejection to check that the application remains usable.
 
-We exchanged driver/navigator roles during the session and reviewed the checks
-together. The exact role-swap time is not recorded here. Working through one
-short test at a time helped keep our discussion focused.
+At 13:45, we moved to Varshitha's code and switched driver/navigator roles.
+Working through one short test at a time helped keep our discussion focused.
 
 A fuller technical explanation is in `CR1_DISCUSSION.md`.
 
 ### Session 2 - Varshitha's code
 
-This was the next part of the same Zoom meeting on November 8. Varshitha became
-the driver when we moved to her code, and I reviewed it as navigator. The start
-and end times of this part still need clarification.
+- Date: November 8, 2026.
+- Time: 13:45-14:00, 15 minutes.
+- Format: Zoom, continuing the same meeting.
+- Driver: Kodela, Varshitha. Navigator: Gary Jia.
+
+Varshitha drove this part while I reviewed her code as navigator.
 
 We reviewed her `aiws_send` and discussed why a separate client sends paths to
 the running application. She explained her 4-byte length prefix and the
