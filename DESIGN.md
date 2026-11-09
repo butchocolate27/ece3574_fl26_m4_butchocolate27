@@ -80,18 +80,23 @@ tests, and prepare these notes.
 - Code discussed: `tests/ipc_tests.cpp`, especially
   `unreadable_remote_file_keeps_current_corpus`.
 
-We discussed why a failed Remote Add should leave an existing corpus usable.
-We walked through building a valid corpus first, searching for `apple`, sending
-a missing file path, and checking return code 1 and an error message. We also
-reviewed waiting for the background build, processing queued window calls, and
-checking the original document, corpus actions, and search results. Searching
-again checks that the application can still do useful work after the rejection.
-A fuller technical explanation is in `CR1_DISCUSSION.md`.
+I proposed adding a test to check that a failed Remote Add does not invalidate
+a corpus that is already working. I entered the code and explained the expected
+behavior while Varshitha reviewed the test and suggested changes.
 
-I operated the code and explained the test while Varshitha reviewed it and
-suggested changes. We exchanged driver/navigator roles during the session and
-reviewed the checks together. The exact role-swap time is not recorded here.
-Working through one short test at a time helped keep our discussion focused.
+We worked through using the existing `IpcFixture` to add a valid file and build
+a corpus, then using `send_file` to send a missing file path through the real
+`aiws_send`. We checked that the sender returns 1 with an error message while
+the original document, enabled corpus actions, and search result remain
+available. We also discussed waiting for Search to become enabled after the
+background build, processing queued window calls, and searching again after
+the rejection to check that the application remains usable.
+
+We exchanged driver/navigator roles during the session and reviewed the checks
+together. The exact role-swap time is not recorded here. Working through one
+short test at a time helped keep our discussion focused.
+
+A fuller technical explanation is in `CR1_DISCUSSION.md`.
 
 ### Session 2 - partner's code
 

@@ -15,9 +15,21 @@ Partner: Kodela, Varshitha. We met on Zoom on November 8, 2026, from 13:30 to
 The discussion below summarizes the technical topics rather than quoting the
 conversation word for word. The pair programming log is in `DESIGN.md`.
 
-I operated the code and explained the test. Varshitha reviewed it and suggested
-changes. We exchanged roles during the session and checked the test logic
-together. The exact role-swap time is not recorded here.
+I proposed adding a test to check that a failed Remote Add does not invalidate
+a corpus that is already working. I entered the code and explained the expected
+behavior while Varshitha reviewed the test and suggested changes.
+
+We worked through using the existing `IpcFixture` to add a valid file and build
+a corpus, then using `send_file` to send a missing file path through the real
+`aiws_send`. We checked that the sender returns 1 with an error message while
+the original document, enabled corpus actions, and search result remain
+available. We also discussed waiting for Search to become enabled after the
+background build, processing queued window calls, and searching again after
+the rejection to check that the application remains usable.
+
+We exchanged driver/navigator roles during the session and reviewed the checks
+together. The exact role-swap time is not recorded here. Working through one
+short test at a time helped keep our discussion focused.
 
 ## Test idea and expected behavior
 
