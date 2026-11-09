@@ -18,7 +18,10 @@ struct BuildCancelled {};
 class BuildChunker final : public ChunkingStrategy {
 public:
     BuildChunker(int delay_ms, const std::atomic<bool>& cancel)
-        : delay_ms_(delay_ms), cancel_(&cancel) {}
+        : delay_ms_(delay_ms), cancel_(&cancel),
+          chunker_(ChunkingPolicy{ProcessingCore::kMaxChunkTokens,
+                                 ProcessingCore::kChunkOverlap,
+                                 ProcessingCore::kParagraphPreferenceWindow}) {}
 
     void finish_build() noexcept {
         delay_ms_ = 0;

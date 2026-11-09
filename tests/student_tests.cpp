@@ -332,6 +332,43 @@ private slots:
         QCOMPARE(test_attempts.load(), 1);
     }
 
+    void default_worker_matches_processing_core() {
+        Workspace workspace;
+        std::string text;
+        for (int i = 0; i < 250; ++i) {
+            text += "apple engine ";
+        }
+        workspace.add_document(aiws::Document("a", "A", text));
+
+        std::unique_ptr<ProcessingCore> reference;
+        bool should_fail = false;
+        try {
+            reference = std::make_unique<ProcessingCore>();
+            reference->rebuild(workspace);
+        } catch (const std::exception&) {
+            should_fail = true;
+        }
+
+        BuildController builds;
+        QVERIFY(builds.start(workspace, 1, 0));
+        QVERIFY(wait_for_ready(builds));
+        aiws::BuildOutcome result;
+        QVERIFY(builds.poll(result));
+        if (should_fail) {
+            QVERIFY(!result.error.empty());
+            QVERIFY(!result.corpus);
+        } else {
+            QVERIFY(result.error.empty());
+            QVERIFY(result.corpus);
+            QCOMPARE(result.corpus->chunk_count(), reference->chunk_count());
+            for (std::size_t i = 0; i < reference->chunk_count(); ++i) {
+                QCOMPARE(result.corpus->chunks()[i].text, reference->chunks()[i].text);
+                QCOMPARE(result.corpus->chunks()[i].token_count,
+                         reference->chunks()[i].token_count);
+            }
+        }
+    }
+
     void worker_uses_private_snapshot_and_transfers_ownership() {
         Workspace workspace;
         workspace.add_document(aiws::Document("a", "A", "apple"));

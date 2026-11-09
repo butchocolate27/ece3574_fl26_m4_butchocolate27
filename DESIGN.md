@@ -6,6 +6,7 @@
 `IpcServer`. Only the GUI thread touches widgets or the Workspace.
 `BuildController::start()` gives its worker a Workspace copy. `run()` builds a
 separate `ProcessingCore`; `BuildChunker` adds delay and checks cancellation.
+The wrapper uses `ProcessingCore`'s default chunking constants.
 The corpus moves through a promise/future into the window or destruction.
 `finish_build()` clears the chunker's borrowed cancellation pointer before transfer.
 
