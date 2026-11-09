@@ -66,7 +66,7 @@ and `reset_and_readd_cannot_reuse_old_version` catch it.
 
 ## AI use
 
-OpenAI Codex helped with coding and debugging.
+Chatgpt helped with coding and debugging. It also helped explaining concepts and ideas.
 
 ## Pair programming log
 
