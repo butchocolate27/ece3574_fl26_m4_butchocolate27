@@ -1,3 +1,24 @@
+commit f70bdc6d55278da2418c43b93858b293d7534162
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-09 00:07:00 -0500
+
+    Use the default backend for background builds
+
+ DESIGN.md                | 16 ++++++-------
+ README.md                |  4 ++--
+ src/build_controller.cpp | 60 +++++++++++-------------------------------------
+ tests/student_tests.cpp  | 20 ++++++++++++++++
+ 4 files changed, 44 insertions(+), 56 deletions(-)
+
+commit ac1c3d7f089060c13235b33e4440d03d6440fc59
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:55:43 -0500
+
+    Refresh history after R3 configuration fix
+
+ HISTORY.txt | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
 commit f483c49ca7603351f0ea5b2d47869c1d3a9d3629
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-08 23:55:43 -0500
