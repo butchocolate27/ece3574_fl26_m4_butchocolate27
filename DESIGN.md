@@ -5,21 +5,21 @@
 `MainWindow` owns the Workspace, widgets, current corpus, `BuildController`, and
 `IpcServer`. Only the GUI thread touches widgets or the Workspace.
 `BuildController::start()` gives its worker a Workspace copy. `run()` builds a
-separate `ProcessingCore`; `BuildChunker` adds the delay and checks cancellation.
+separate `ProcessingCore`; `BuildChunker` adds delay and checks cancellation.
 The corpus moves through a promise/future into the window or destruction.
 `finish_build()` clears the chunker's borrowed cancellation pointer before transfer.
 
-The shared mutable application data is `BuildController::cancel_` and
-`IpcServer::stop_`. The GUI writes these atomic bools and each worker reads its
-own flag. Other worker inputs are fixed after startup. The socket is used only
-by its receiver thread after setup. Futures and Qt's queued argument copies
-provide the handoffs; no application queue or mutex is shared. The window
-outlives the IPC thread that calls `invokeMethod()` on it.
+Shared mutable application data consists of `BuildController::cancel_` and
+`IpcServer::stop_`. The GUI writes these atomic bools; each worker reads its own
+flag. Other worker inputs are fixed after startup. The receiver alone uses its
+socket after setup. Futures and Qt's queued argument copies handle transfers;
+no application queue or mutex is shared. The window outlives the IPC thread
+that calls `invokeMethod()` on it.
 
 Both workers make their futures ready at thread exit. GUI polling joins only
-ready threads. Confirmed Exit requests both workers to stop and keeps processing
-events until both are collected. Destructors also stop and join for direct
-object destruction. Declining Exit changes nothing.
+ready threads. Confirmed Exit stops both workers and keeps processing events
+until both are collected. Destructors also stop and join for direct destruction.
+Declining Exit changes nothing.
 
 ## Corpus state
 
@@ -32,42 +32,54 @@ its error and allows retry.
 
 ## Changes since the checkpoint and CR-1 impact
 
-The background-build design is unchanged. A function-pointer task option allows
+The background-build design is unchanged. A function-pointer task option permits
 deterministic failure tests. The exit callback calls `close()` so workers can be
 collected first.
 
 CR-1 adds `IpcServer::handle_client()`, which reads the file and queues its path
-and text without waiting for the GUI. `add_document_file()` and the new
-`add_document_text()` slot share the existing duplicate check and invalidation.
-`closeEvent()` and `poll_build()` now collect both workers. `main()` starts the
-server; `tools/aiws_send.cpp` resolves relative file names in the sender's working
-directory. Backend and component-widget behavior did not need changes.
+and text without waiting for the GUI. `add_document_file()` and
+`add_document_text()` share duplicate checking and invalidation. An unreadable
+file is rejected before changing the Workspace, so its current corpus remains
+usable; `unreadable_remote_file_keeps_current_corpus` tests this.
+`closeEvent()` and `poll_build()` collect both workers. `main()` starts the
+server; `tools/aiws_send.cpp` resolves sender-relative file paths. Backend and
+component-widget behavior did not need changes.
 
 ## Wire format
 
-Each connection carries one request and one reply. Both frames start with a
-4-byte unsigned big-endian payload length, limited to 1,048,576 bytes. The
-request payload is an absolute UTF-8 file path without NUL. A reply payload is
-ASCII `0` for accepted, or ASCII `1` followed by a UTF-8 rejection reason.
-Lengths count bytes, so spaces and newlines need no escaping. Reads and writes
-loop until complete. Connections have a 5-second message deadline; polling
-checks shutdown at most every 50 ms. The receiver serves one connection at a
-time and removes its socket on exit. An existing socket path makes startup fail.
+Each connection carries one request and one reply. Frames start with a 4-byte
+unsigned big-endian payload length, limited to 1,048,576 bytes. The request is an
+absolute UTF-8 path without NUL. A reply is ASCII `0` for accepted, or ASCII `1`
+followed by a UTF-8 rejection reason. Lengths count bytes, so spaces and newlines
+need no escaping. Reads/writes loop until complete. Connections have a 5-second
+message deadline; polling checks shutdown every 50 ms. The receiver serves one
+connection at a time and removes its socket on exit. Existing paths make startup
+fail.
 
 ## Fault switches
 
-`AIWS_FAULT_ACCEPT_STALE` bypasses the version check in `poll_build()`; the
+`AIWS_FAULT_ACCEPT_STALE` bypasses the version check in `poll_build()`;
 `finished_build_after_add_is_discarded`, `finished_build_after_reset_is_discarded`,
-and `reset_and_readd_cannot_reuse_old_version` tests catch it.
-`AIWS_FAULT_LOSE_FAILURE` drops errors in `BuildController::poll()`; the
-`failure_is_reported_and_retry_works` and `unknown_failure_is_reported` tests catch it.
+and `reset_and_readd_cannot_reuse_old_version` catch it.
+`AIWS_FAULT_LOSE_FAILURE` drops errors in `BuildController::poll()`;
+`failure_is_reported_and_retry_works` and `unknown_failure_is_reported` catch it.
 
 ## AI use
 
 OpenAI Codex helped migrate M3, implement background builds and Remote Add, write
-tests, and prepare this record.
+tests, and prepare these notes.
 
 ## Pair programming log
 
-Not completed yet. Actual partner, sessions, role swaps, and contributions remain
-to be recorded after the pair work.
+### Messages and preparation
+
+We exchanged iMessages about sharing our own sections. I explained that my notes
+covered the concept of my part and coding ideas. My partner asked to see them
+and offered to share their own notes when finished. I prepared the missing-file
+regression-test explanation in `CR1_DISCUSSION.md`.
+
+### Session details
+
+Partner name, the two sessions' dates and start/end times, code ownership and
+work covered, role-swap times, both navigator contributions, and what worked
+well still need confirmation from the actual sessions.

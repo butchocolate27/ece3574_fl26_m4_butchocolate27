@@ -159,6 +159,35 @@ private slots:
         QTRY_COMPARE(f.documents()->count(), 1);
     }
 
+    void unreadable_remote_file_keeps_current_corpus() {
+        IpcFixture f;
+        const QString path = f.file("valid.txt");
+        QVERIFY(f.window.add_document_file(path));
+
+        auto* search = f.window.findChild<aiws::gui::SearchWidget*>();
+        search->findChild<QLineEdit*>()->setText("apple");
+        f.button("Build Corpus")->click();
+        QTRY_VERIFY(f.button("Search")->isEnabled());
+        f.button("Search")->click();
+
+        auto* table = f.window.findChild<QTableView*>();
+        QCOMPARE(table->model()->rowCount(), 1);
+
+        const auto result = send_file(f.socket_path, f.directory.filePath("missing.txt"));
+        QCOMPARE(result.code, 1);
+        QVERIFY(!result.error.trimmed().isEmpty());
+
+        QCoreApplication::sendPostedEvents(&f.window);
+        QCOMPARE(f.documents()->count(), 1);
+        QCOMPARE(f.button("Search")->isEnabled(), true);
+        QCOMPARE(f.button("Inspect")->isEnabled(), true);
+        QCOMPARE(f.button("Build Context")->isEnabled(), true);
+        QCOMPARE(table->model()->rowCount(), 1);
+
+        f.button("Search")->click();
+        QCOMPARE(table->model()->rowCount(), 1);
+    }
+
     void duplicate_add_keeps_current_corpus() {
         IpcFixture f;
         const QString path = f.file("first.txt");

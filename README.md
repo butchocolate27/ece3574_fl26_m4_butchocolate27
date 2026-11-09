@@ -42,7 +42,9 @@ while the GUI is blocked, malformed/disconnected clients, timeouts, and shutdown
 Both required fault builds should fail the original fault-detection tests.
 
 `DESIGN_NOTE.md` is the unchanged checkpoint. `HISTORY.txt` records actual Git
-history. The pair programming log still needs the real sessions.
+history. `DESIGN.md` contains the design and pair log. `CR1_DISCUSSION.md`
+contains the message summary, missing-file test explanation, and discussion
+questions. Session details in the pair log still need confirmation.
 
 ## Pair programming checklist / 结对编程清单
 
@@ -73,7 +75,8 @@ separate pair-programming quiz counts toward the course grade, not M4 points.
 
 Checked in Ubuntu 22.04 with GCC 11.4 and Qt 6.2.4:
 
-- Normal CTest: both suites passed, 18 QtTest checks each, including setup/cleanup.
+- Normal CTest: student_tests passed 18 QtTest checks and ipc_tests passed 19,
+  including setup/cleanup. The IPC checks include the missing-file regression test.
 - Each required fault build failed the intended student tests within 60 seconds;
   the IPC suite passed in both fault builds.
 - Real application/sender smoke checks passed with an explicit socket path, the
