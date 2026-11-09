@@ -31,6 +31,27 @@ We exchanged driver/navigator roles during the session and reviewed the checks
 together. The exact role-swap time is not recorded here. Working through one
 short test at a time helped keep our discussion focused.
 
+## Discussion on Varshitha's code
+
+In the next part of the same Zoom meeting, Varshitha drove and explained her
+`aiws_send` implementation. We discussed using a separate client to send file
+paths to a running AI Workspace application.
+
+Her message format uses a 4-byte length prefix. Her `encode_length()` and
+`decode_length()` functions convert the length between an integer and the four
+bytes sent through the socket. We discussed how the receiver can use this
+length to read a complete path, including spaces or newlines.
+
+We then reviewed her `IpcServer`, which manages the application-side Unix domain
+socket. I suggested keeping client and server responsibilities separate and
+concise. The sender handles outgoing requests; the server handles receiving and
+processing them. These named encode/decode functions describe her project;
+my project's framing helpers are in `src/ipc_protocol.cpp`.
+
+The roles changed when we moved from reviewing my test to reviewing her code.
+The exact start and end times of the second code-review part still need
+clarification.
+
 ## Test idea and expected behavior
 
 The case is a missing file sent through Remote Add after a valid corpus has
