@@ -66,8 +66,7 @@ and `reset_and_readd_cannot_reuse_old_version` catch it.
 
 ## AI use
 
-OpenAI Codex helped migrate M3, implement background builds and Remote Add, write
-tests, and prepare these notes.
+OpenAI Codex helped with code, tests, and documentation.
 
 ## Pair programming log
 
