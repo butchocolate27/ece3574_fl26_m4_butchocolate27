@@ -1,9 +1,5 @@
 #include "aiws/build_controller.hpp"
 
-#include "aiws/chunker.hpp"
-#include "aiws/context_builder.hpp"
-#include "aiws/retrieval_engine.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <exception>
@@ -15,58 +11,30 @@ namespace {
 
 struct BuildCancelled {};
 
-class BuildChunker final : public ChunkingStrategy {
-public:
-    BuildChunker(int delay_ms, const std::atomic<bool>& cancel)
-        : delay_ms_(delay_ms), cancel_(&cancel),
-          chunker_(ChunkingPolicy{ProcessingCore::kMaxChunkTokens,
-                                 ProcessingCore::kChunkOverlap,
-                                 ProcessingCore::kParagraphPreferenceWindow}) {}
-
-    void finish_build() noexcept {
-        delay_ms_ = 0;
-        cancel_ = nullptr;
+void check_cancelled(const std::atomic<bool>& cancel) {
+    if (cancel.load()) {
+        throw BuildCancelled{};
     }
+}
 
-    std::vector<Chunk> chunk(const Document& document,
-                             std::size_t document_order) const override {
-        check_cancelled();
+std::unique_ptr<ProcessingCore> build_snapshot(
+    const Workspace& workspace, int delay_ms, const std::atomic<bool>& cancel) {
+    check_cancelled(cancel);
+    // Use the same backend and default strategies as the M3 build.
+    auto corpus = std::make_unique<ProcessingCore>();
+    for (std::size_t i = 0; i < workspace.documents().size(); ++i) {
         const auto deadline = std::chrono::steady_clock::now()
-                            + std::chrono::milliseconds(delay_ms_);
+                            + std::chrono::milliseconds(delay_ms);
         while (std::chrono::steady_clock::now() < deadline) {
-            check_cancelled();
+            check_cancelled(cancel);
             std::this_thread::sleep_until(std::min(
                 deadline, std::chrono::steady_clock::now()
                         + std::chrono::milliseconds(5)));
         }
-        check_cancelled();
-        auto chunks = chunker_.chunk(document, document_order);
-        check_cancelled();
-        return chunks;
     }
-
-private:
-    void check_cancelled() const {
-        if (cancel_ && cancel_->load()) {
-            throw BuildCancelled{};
-        }
-    }
-
-    int delay_ms_;
-    const std::atomic<bool>* cancel_;
-    Chunker chunker_;
-};
-
-std::unique_ptr<ProcessingCore> build_snapshot(
-    const Workspace& workspace, int delay_ms, const std::atomic<bool>& cancel) {
-    auto chunker = std::make_unique<BuildChunker>(delay_ms, cancel);
-    auto* chunker_observer = chunker.get();
-    auto corpus = std::make_unique<ProcessingCore>(
-        std::move(chunker),
-        std::make_unique<RetrievalEngine>(),
-        std::make_unique<ContextBuilder>());
+    check_cancelled(cancel);
     corpus->rebuild(workspace);
-    chunker_observer->finish_build();
+    check_cancelled(cancel);
     return corpus;
 }
 

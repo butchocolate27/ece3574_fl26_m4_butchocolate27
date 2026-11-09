@@ -4,11 +4,11 @@
 
 `MainWindow` owns the Workspace, widgets, current corpus, `BuildController`, and
 `IpcServer`. Only the GUI thread touches widgets or the Workspace.
-`BuildController::start()` gives its worker a Workspace copy. `run()` builds a
-separate `ProcessingCore`; `BuildChunker` adds delay and checks cancellation.
-The wrapper uses `ProcessingCore`'s default chunking constants.
-The corpus moves through a promise/future into the window or destruction.
-`finish_build()` clears the chunker's borrowed cancellation pointer before transfer.
+`BuildController::start()` gives its worker a Workspace copy. `run()` creates a
+default `ProcessingCore`, adds the requested delay per document, then rebuilds
+that snapshot. Cancellation is checked during delays and before/after rebuild;
+an active backend rebuild finishes before shutdown. The corpus moves through a
+promise/future into the window or destruction.
 
 Shared mutable application data consists of `BuildController::cancel_` and
 `IpcServer::stop_`. The GUI writes these atomic bools; each worker reads its own
@@ -33,9 +33,9 @@ its error and allows retry.
 
 ## Changes since the checkpoint and CR-1 impact
 
-The background-build design is unchanged. A function-pointer task option permits
-deterministic failure tests. The exit callback calls `close()` so workers can be
-collected first.
+The worker now uses M3's default backend directly instead of configuring separate
+strategies. A function-pointer task option permits deterministic failure tests.
+The exit callback calls `close()` so workers can be collected first.
 
 CR-1 adds `IpcServer::handle_client()`, which reads the file and queues its path
 and text without waiting for the GUI. `add_document_file()` and

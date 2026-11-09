@@ -297,16 +297,36 @@ private slots:
         test_attempts.store(0);
         WindowFixture f(&fail_first_build);
         QVERIFY(f.window.add_document_file(first_));
+        f.query()->setText("apple");
         f.button("Build Corpus")->click();
         QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
         QVERIFY(f.status()->text().contains("Build failed: test build failed"));
         QVERIFY(f.button("Build Corpus")->isEnabled());
+        QVERIFY(!f.button("Search")->isEnabled());
         QVERIFY(!f.button("Inspect")->isEnabled());
+        QVERIFY(!f.button("Build Context")->isEnabled());
         QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
         f.button("Build Corpus")->click();
         QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        QVERIFY(f.button("Search")->isEnabled());
         QVERIFY(f.button("Inspect")->isEnabled());
+        QVERIFY(f.button("Build Context")->isEnabled());
         QCOMPARE(test_attempts.load(), 2);
+
+        // A later failed rebuild must not leave the previous corpus usable.
+        test_attempts.store(0);
+        f.button("Build Corpus")->click();
+        QVERIFY(!f.button("Search")->isEnabled());
+        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        QVERIFY(f.status()->text().contains("Build failed: test build failed"));
+        QVERIFY(!f.button("Search")->isEnabled());
+        QVERIFY(!f.button("Inspect")->isEnabled());
+        QVERIFY(!f.button("Build Context")->isEnabled());
+        QVERIFY(f.button("Build Corpus")->isEnabled());
+        f.button("Build Corpus")->click();
+        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        f.button("Search")->click();
+        QCOMPARE(f.window.findChild<QTableView*>()->model()->rowCount(), 1);
     }
 
     void unknown_failure_is_reported() {

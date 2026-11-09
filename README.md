@@ -80,8 +80,8 @@ Checked in Ubuntu 22.04 with GCC 11.4 and Qt 6.2.4:
 - Normal CTest: student_tests and ipc_tests passed 19 QtTest checks each,
   including setup/cleanup. The IPC checks include the missing-file regression test.
 - An isolated invalid-policy build reports a build failure and leaves corpus
-  actions disabled. The worker/backend configuration comparison fails before
-  the policy fix and passes afterward.
+  actions disabled. An isolated backend initialization failure also leaves
+  Search, Inspect, and Build Context disabled, then allows a successful retry.
 - Each required fault build failed the intended student tests within 60 seconds;
   the IPC suite passed in both fault builds.
 - Real application/sender smoke checks passed with an explicit socket path, the
