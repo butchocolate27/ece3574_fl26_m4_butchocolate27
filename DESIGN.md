@@ -71,15 +71,32 @@ tests, and prepare these notes.
 
 ## Pair programming log
 
+### Session 1 - Gary Jia's code
+
+- Partner: Kodela, Varshitha.
+- Date: November 8, 2026.
+- Time: 13:30-13:50, 20 minutes.
+- Format: Zoom.
+- Code discussed: `tests/ipc_tests.cpp`, especially
+  `unreadable_remote_file_keeps_current_corpus`.
+
+We discussed why a failed Remote Add should leave an existing corpus usable.
+We walked through building a valid corpus first, searching for `apple`, sending
+a missing file path, and checking return code 1 and an error message. We also
+reviewed waiting for the background build, processing queued window calls, and
+checking the original document, corpus actions, and search results. Searching
+again checks that the application can still do useful work after the rejection.
+A fuller technical explanation is in `CR1_DISCUSSION.md`.
+
+Driver/navigator assignments, role-swap times, individual navigator
+contributions, and the interaction reflection still need confirmation.
+
+### Session 2 - partner's code
+
+Date, start/end times, work covered, roles, role swaps, and contributions still
+need confirmation.
+
 ### Messages and preparation
 
-We exchanged iMessages about sharing our own sections. I explained that my notes
-covered the concept of my part and coding ideas. My partner asked to see them
-and offered to share their own notes when finished. I prepared the missing-file
-regression-test explanation in `CR1_DISCUSSION.md`.
-
-### Session details
-
-Partner name, the two sessions' dates and start/end times, code ownership and
-work covered, role-swap times, both navigator contributions, and what worked
-well still need confirmation from the actual sessions.
+We exchanged iMessages about sharing our own explanations and coding ideas.
+My partner asked to see my notes and offered to share their own when finished.

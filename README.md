@@ -43,8 +43,9 @@ Both required fault builds should fail the original fault-detection tests.
 
 `DESIGN_NOTE.md` is the unchanged checkpoint. `HISTORY.txt` records actual Git
 history. `DESIGN.md` contains the design and pair log. `CR1_DISCUSSION.md`
-contains the message summary, missing-file test explanation, and discussion
-questions. Session details in the pair log still need confirmation.
+contains the message summary, missing-file test explanation, and Zoom discussion
+summary. The November 8 session on my code is recorded; its role/contribution
+details and the session on my partner's code still need confirmation.
 
 ## Pair programming checklist / 结对编程清单
 
