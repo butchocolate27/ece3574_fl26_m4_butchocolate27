@@ -66,7 +66,7 @@ and `reset_and_readd_cannot_reuse_old_version` catch it.
 
 ## AI use
 
-OpenAI Codex helped with code, tests, and documentation.
+OpenAI Codex helped with coding and debugging.
 
 ## Pair programming log
 
