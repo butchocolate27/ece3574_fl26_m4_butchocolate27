@@ -15,6 +15,10 @@ Partner: Kodela, Varshitha. We met on Zoom on November 8, 2026, from 13:30 to
 The discussion below summarizes the technical topics rather than quoting the
 conversation word for word. The pair programming log is in `DESIGN.md`.
 
+I operated the code and explained the test. Varshitha reviewed it and suggested
+changes. We exchanged roles during the session and checked the test logic
+together. The exact role-swap time is not recorded here.
+
 ## Test idea and expected behavior
 
 The case is a missing file sent through Remote Add after a valid corpus has

@@ -88,8 +88,10 @@ checking the original document, corpus actions, and search results. Searching
 again checks that the application can still do useful work after the rejection.
 A fuller technical explanation is in `CR1_DISCUSSION.md`.
 
-Driver/navigator assignments, role-swap times, individual navigator
-contributions, and the interaction reflection still need confirmation.
+I operated the code and explained the test while Varshitha reviewed it and
+suggested changes. We exchanged driver/navigator roles during the session and
+reviewed the checks together. The exact role-swap time is not recorded here.
+Working through one short test at a time helped keep our discussion focused.
 
 ### Session 2 - partner's code
 
