@@ -1,3 +1,22 @@
+commit 9a58b98bf038160b35b382e20e06f35aa350f751
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:25:55 -0500
+
+    Expand concrete CR-1 discussion summary
+
+ CR1_DISCUSSION.md | 18 +++++++++++++++---
+ DESIGN.md         | 27 ++++++++++++++++-----------
+ 2 files changed, 31 insertions(+), 14 deletions(-)
+
+commit 80c75bb26bb3d2d3d0fd18fce90dd4c2b81b44a4
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:23:20 -0500
+
+    Refresh M4 history
+
+ HISTORY.txt | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
 commit 8d0ecb30ecab6d46a9f893fff7c32b05defbe40c
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-08 23:23:19 -0500
