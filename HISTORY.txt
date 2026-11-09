@@ -1,3 +1,23 @@
+commit 52391c7239cc88f597a832be29f3975818a85baa
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:21:20 -0500
+
+    Record confirmed M4 Zoom discussion
+
+ CR1_DISCUSSION.md | 32 ++++++++++++++++++++++++--------
+ DESIGN.md         | 35 ++++++++++++++++++++++++++---------
+ README.md         |  5 +++--
+ 3 files changed, 53 insertions(+), 19 deletions(-)
+
+commit e2cad0dfe4ce4900b608f04e1a320f35143dbb32
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:19:05 -0500
+
+    Refresh M4 submission history
+
+ HISTORY.txt | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
 commit cc1cd4dd43eebaa220526232711fd8089fc6ef48
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-08 23:18:59 -0500
