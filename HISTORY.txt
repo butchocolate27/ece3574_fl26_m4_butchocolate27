@@ -1,3 +1,24 @@
+commit 11533b7abd17427465c77c0b4085811356a1d32d
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:34:29 -0500
+
+    Add partner account of CR-1 review
+
+ CR1_DISCUSSION.md | 21 +++++++++++++++++++++
+ DESIGN.md         | 21 +++++++++++++++++----
+ README.md         |  4 ++--
+ 3 files changed, 40 insertions(+), 6 deletions(-)
+
+commit cf2c2a7c1dfdf0c0738c67caf1cf1101599740aa
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:31:17 -0500
+
+    Simplify AI-use wording
+
+ DESIGN.md   |  2 +-
+ HISTORY.txt | 10 ++++++++++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
 commit 01fa0a914571cb115cb0e253fca2772057755cd2
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-08 23:30:44 -0500
