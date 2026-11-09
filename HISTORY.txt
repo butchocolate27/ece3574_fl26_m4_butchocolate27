@@ -1,3 +1,24 @@
+commit cc1cd4dd43eebaa220526232711fd8089fc6ef48
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:18:59 -0500
+
+    Finalize missing-file regression test and CR-1 notes
+
+ CR1_DISCUSSION.md   | 59 ++++++++++++++++++++++++++++++++++++++++++
+ DESIGN.md           | 74 +++++++++++++++++++++++++++++++----------------------
+ README.md           |  7 +++--
+ tests/ipc_tests.cpp | 29 +++++++++++++++++++++
+ 4 files changed, 136 insertions(+), 33 deletions(-)
+
+commit 3da7838f99b46dd804f3e4d65aa901175b89b2ce
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 06:29:21 -0500
+
+    Update M4 development history after CR-1
+
+ HISTORY.txt | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
 commit eee0c06fb9dc1914036d3e632627c26d3ff4d369
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-08 06:29:16 -0500
