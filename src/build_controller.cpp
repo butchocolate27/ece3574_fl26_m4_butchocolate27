@@ -46,28 +46,34 @@ void BuildController::request_cancel() {
 }
 
 void BuildController::run() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    while (!stopping_) {
-        changed_.wait(lock, [this] {
+    for (;;) {
+        Request request;
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            changed_.wait(lock, [this] {
 #ifdef AIWS_FAULT_SILENT_SHUTDOWN
-            return pending_.has_value();
+                return pending_.has_value();
 #else
-            return stopping_ || pending_.has_value();
+                return stopping_ || pending_.has_value();
 #endif
-        });
-        if (stopping_) {
-            return;
+            });
+            if (stopping_) {
+                return;
+            }
+            request = std::move(*pending_);
+            pending_.reset();
+            cancelled_.store(false);
         }
 
-        Request request = std::move(*pending_);
-        pending_.reset();
-        cancelled_.store(false);
-        lock.unlock();
-
         emit started(request.version);
-        emit finished(build(request));
-
-        lock.lock();
+        auto outcome = build(request);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (stopping_) {
+                return;
+            }
+        }
+        emit finished(std::move(outcome));
     }
 }
 
