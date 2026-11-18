@@ -6,6 +6,7 @@
 #include "aiws/gui/workspace_widget.hpp"
 
 #include <QApplication>
+#include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QLabel>
@@ -384,8 +385,7 @@ private slots:
         f.window.set_build_delay_ms(200);
         f.button("Build Corpus")->click();
         QVERIFY(f.events.next_start(10));
-        QElapsedTimer elapsed;
-        elapsed.start();
+        QDeadlineTimer deadline(650, Qt::PreciseTimer);
         f.button("Reset")->click();
         QVERIFY(f.window.add_document_file(second_));
         f.window.set_build_delay_ms(0);
@@ -394,15 +394,12 @@ private slots:
         f.button("Build Corpus")->click();
         BuildOutcome old;
         BuildOutcome current;
-        const int deadline_ms = 650;
-        const bool replaced = f.events.next_finish(&old, deadline_ms)
-                           && elapsed.elapsed() < deadline_ms
-                           && f.events.next_finish(&current, deadline_ms - elapsed.elapsed());
-        QVERIFY2(replaced && f.button("Search")->isEnabled(),
+        const bool replaced = f.events.next_finish(&old, deadline.remainingTime())
+                           && f.events.next_finish(&current, deadline.remainingTime());
+        QVERIFY2(replaced && !deadline.hasExpired() && f.button("Search")->isEnabled(),
                  "The replacement corpus was not searchable promptly after Reset");
         QCOMPARE(old.workspace_version, std::uint64_t(10));
         QVERIFY(current.workspace_version > old.workspace_version);
-        QVERIFY(elapsed.elapsed() < deadline_ms);
         f.button("Search")->click();
         QCOMPARE(f.window.findChild<QTableView*>()->model()->rowCount(), 1);
     }
