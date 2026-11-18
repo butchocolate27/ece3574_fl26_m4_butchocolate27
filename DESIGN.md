@@ -1,39 +1,37 @@
-# M5 design
+# M5 Design: Thread-Safe Build Worker
 
-Draft outline. Replace each prompt with your own words. Aim for one page, about 500 words including the table.
+**1. What I fixed in M4.** The old worker chose its own chunker and bypassed the default `ProcessingCore` constructor. When that constructor was set to fail, the GUI still showed “Corpus built.” Now `BuildController::build` uses the default constructor. On failure the GUI shows the error and returns to `Dirty`. A successful retry moves to `Current`.
 
-## M4 fix
+**2. Shared data.** The GUI owns the window, Workspace and state objects. One build worker owns its snapshot and waits on `changed_` for a request or shutdown. Qt queues its read-only result and the IPC thread’s file contents for the GUI.
 
-What happened when the default ProcessingCore constructor failed? What does the GUI show now, and what happens on retry?
+| Data | Who uses it | Why it is safe |
+|---|---|---|
+| `pending_` | GUI replaces it, worker takes and clears it | Both hold `mutex_` |
+| `stopping_` | GUI sets it, worker reads it | Same mutex as the wait condition |
+| `cancelled_` | GUI sets it, worker reads and clears it | Atomic flag |
+| `IpcServer::stop_` | GUI writes it, IPC thread reads it | Atomic flag |
 
-## Threads and shared data
+**3. States.** Reset takes any open state to `Empty`. On confirmed Exit, `shutdown` wakes and joins the build worker. The window also stops the IPC thread and enters `Closing`.
 
-What do the GUI, build worker and socket receiver each own? For pending_, stopping_, cancelled_ and IpcServer::stop_, name the reader, writer and protection. How does the build result get back to the GUI?
+| State | Meaning | Other transitions |
+|---|---|---|
+| Empty | No documents | Add → Dirty |
+| Dirty | Documents waiting for a build | Build → Building |
+| Building | Request outstanding | Matching success → Current, failure or successful Add → Dirty |
+| Current | Corpus ready to search | Add → Dirty, Build → Building |
+| Closing | Window closing | Ignores late events |
 
-## States
+**4. Example.** Start with six documents, Reset during Build, then add one and rebuild.
 
-| State | What it means | Events and next states |
-| --- | --- | --- |
-| Empty | | |
-| Dirty | | |
-| Building | | |
-| Current | | |
-| Closing | | |
+1. GUI — `start` saves the six-document snapshot (version 6) and wakes the worker.
+2. Worker — `run` takes it, clears `cancelled_` and builds outside the lock.
+3. GUI — `Building::reset` calls `request_cancel`. `clear_workspace` empties the Workspace and advances its version to 7.
+4. GUI — `add_document_text` advances the version to 8. Build calls `start` with the new snapshot.
+5. Worker — `DocumentBuildStep::check_cancelled` stops the old job. `run` posts its result and takes version 8.
+6. GUI — `Building::build_finished` ignores the late version 6 result and accepts the successful version 8 result.
 
-## One event sequence
+**5. Decisions.** `Building` leaves Build disabled and ignores repeated `build_requested` calls. A successful remote Add shows the new file. `Building::document_added` cancels the stale build. Rebuilding by hand lets the user finish adding files. In `run`, the request tells the worker what to build, cancellation ends one job, and stopping ends the thread.
 
-Trace Reset during a long build, then adding one file and starting a new build. Write one step per line. Name the thread and function for each step. What happens to a late completion?
+**6. Tests.** `AIWS_FAULT_NO_CANCEL` in `cancel_locked` keeps the worker busy with old documents. `reset_rebuild_skips_remaining_documents` starts with ten files and gives the replacement 650 ms to become searchable. `AIWS_FAULT_SILENT_SHUTDOWN` makes the idle wait in `run` ignore Exit. When the `idle_exit_after_build` child hangs in `join`, its parent fails after four seconds.
 
-## Three decisions
-
-1. How does Building handle a second Build click? Why?
-2. What does the user see when a remote Add succeeds during a build? Who starts the next build?
-3. Why does the worker need a pending request, cancellation and shutdown information? What can stay on the GUI thread?
-
-## Faults and tests
-
-Name both fault switches, their functions, the tests that catch them, and what the user would observe.
-
-## AI use
-
-Describe the help you used for the design, code, tests and debugging.
+**7. AI use.** I used ChatGPT to analyze the design, help implement the code and tests, debug Docker results, and check this write-up.
