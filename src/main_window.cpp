@@ -1,5 +1,6 @@
 #include "aiws/gui/main_window.hpp"
 #include "aiws/gui/resettable.hpp"
+#include "corpus_state.hpp"
 
 #include "aiws/gui/workspace_widget.hpp"
 #include "aiws/gui/search_widget.hpp"
@@ -7,7 +8,6 @@
 #include "aiws/gui/context_widget.hpp"
 
 #include <QCloseEvent>
-#include <QTimer>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -28,13 +28,13 @@ MainWindow::MainWindow(QWidget* parent)
     : MainWindow(std::make_unique<BuildController>(), parent) {}
 
 MainWindow::MainWindow(std::unique_ptr<BuildController> builds, QWidget* parent)
-    : QMainWindow(parent), builds_(std::move(builds)), ipc_(std::make_unique<IpcServer>(this)) {
+    : QMainWindow(parent), builds_(std::move(builds)), ipc_(std::make_unique<IpcServer>(this)),
+      state_(CorpusState::initial()) {
     if (!builds_) {
         throw std::invalid_argument("A build controller is required.");
     }
-    build_timer_ = new QTimer(this);
-    build_timer_->setInterval(10);
-    connect(build_timer_, &QTimer::timeout, this, &MainWindow::poll_build);
+    connect(builds_.get(), &BuildController::finished, this, &MainWindow::build_finished,
+            Qt::QueuedConnection);
     setWindowTitle("AI Workspace");
     resize(900, 900);
 
@@ -138,7 +138,14 @@ void MainWindow::set_exit_callback(ExitCallback callback) noexcept {
     exit_callback_ = callback;
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow() {
+    stop_workers();
+}
+
+void MainWindow::stop_workers() {
+    builds_->shutdown();
+    ipc_->stop();
+}
 
 void MainWindow::set_build_delay_ms(int ms_per_document) {
     build_delay_ms_ = std::max(0, ms_per_document);
@@ -162,7 +169,7 @@ void MainWindow::add_document() {
 }
 
 bool MainWindow::add_document_file(const QString& path) {
-    if (closing_) {
+    if (!state_->accepts_documents()) {
         return false;
     }
     const QFileInfo info(path);
@@ -180,7 +187,7 @@ bool MainWindow::add_document_file(const QString& path) {
 }
 
 void MainWindow::add_document_text(const QString& path, const QString& text) {
-    if (closing_) {
+    if (!state_->accepts_documents()) {
         return;
     }
     const QFileInfo info(path);
@@ -195,74 +202,29 @@ void MainWindow::add_document_text(const QString& path, const QString& text) {
     workspace_.add_document(Document(id.toStdString(), info.fileName().toStdString(),
                                      text.toStdString()));
     ++workspace_version_;
-    invalidate_corpus();
+    change_state(state_->document_added(*this));
     workspace_widget_->add_document(info.fileName());
     status_label_->setText("Document added: " + info.fileName());
 }
 
 void MainWindow::build_corpus() {
-    if (closing_ || builds_->busy() || workspace_.documents().empty()) {
-        return;
-    }
-    invalidate_corpus();
-    try {
-        builds_->start(workspace_, workspace_version_, build_delay_ms_);
-        workspace_widget_->set_corpus_status("Corpus: Building...");
-        status_label_->setText("Building corpus...");
-        build_timer_->start();
-    } catch (const std::exception& error) {
-        status_label_->setText("Build failed: " + QString::fromUtf8(error.what()));
-    }
-    update_action_states();
+    change_state(state_->build_requested(*this));
 }
 
-void MainWindow::poll_build() {
-    BuildOutcome outcome;
-    if (builds_->poll(outcome) && !closing_) {
-        bool current = outcome.workspace_version == workspace_version_;
-#ifdef AIWS_FAULT_ACCEPT_STALE
-        // Deliberately accept a completed corpus from an older Workspace.
-        current = true;
-#endif
-        if (current && !outcome.error.empty()) {
-            status_label_->setText("Build failed: " + QString::fromStdString(outcome.error));
-            workspace_widget_->set_corpus_status("Corpus: Not built");
-        } else if (current && !outcome.cancelled && outcome.corpus) {
-            processing_core_ = std::move(outcome.corpus);
-            corpus_current_ = true;
-            clear_processing_outputs();
-            workspace_widget_->set_corpus_status(
-                "Corpus: " + QString::number(processing_core_->chunk_count()) + " chunks");
-            status_label_->setText("Corpus built.");
-        } else {
-            status_label_->setText("Build discarded; workspace changed.");
-        }
+void MainWindow::build_finished(aiws::BuildOutcome outcome) {
+    change_state(state_->build_finished(*this, outcome));
+}
+
+void MainWindow::change_state(std::unique_ptr<CorpusState> next) {
+    if (next) {
+        state_ = std::move(next);
         update_action_states();
-    }
-    if (closing_) {
-        ipc_->poll_stop();
-        if (!builds_->busy() && !ipc_->running()) {
-            build_timer_->stop();
-            close();
-        }
-    } else if (!builds_->busy()) {
-        build_timer_->stop();
     }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    closing_ = true;
-    ipc_->request_stop();
-    ipc_->poll_stop();
-    invalidate_corpus();
-    centralWidget()->setEnabled(false);
-    if (builds_->busy() || ipc_->running()) {
-        status_label_->setText("Stopping background work...");
-        event->ignore();
-        build_timer_->start();
-    } else {
-        event->accept();
-    }
+    change_state(state_->close(*this));
+    event->accept();
 }
 
 void MainWindow::document_selected(int row) {
@@ -282,7 +244,7 @@ void MainWindow::document_selected(int row) {
 }
 
 void MainWindow::search_requested(const QString& query, int k) {
-    if (!corpus_current_ || query.trimmed().isEmpty()) {
+    if (!state_->has_corpus() || query.trimmed().isEmpty()) {
         return;
     } //query去掉首尾空白后为空
 
@@ -310,7 +272,7 @@ void MainWindow::query_changed(const QString& query) {
 
 void MainWindow::build_context_requested(int token_budget) {
     QString query = search_widget_->query();
-    if (!corpus_current_ || query.trimmed().isEmpty()) {
+    if (!state_->has_corpus() || query.trimmed().isEmpty()) {
         return;
     }
 
@@ -347,7 +309,7 @@ void MainWindow::source_document_requested(const QString& document_id) {
 
 void MainWindow::term_inspection_requested(const QString& term,
                                           const QString& chunk_id) {
-    if (!corpus_current_ || term.trimmed().isEmpty()) {
+    if (!state_->has_corpus() || term.trimmed().isEmpty()) {
         return;
     }
 
@@ -370,6 +332,10 @@ void MainWindow::term_inspection_requested(const QString& term,
 }
 
 void MainWindow::reset_application() {
+    change_state(state_->reset(*this));
+}
+
+void MainWindow::clear_workspace() {
     // Clear workspace data
     ++workspace_version_;
     workspace_.clear();
@@ -387,7 +353,6 @@ void MainWindow::reset_application() {
         component->reset(); //workspace->clear context; seach->x query; term-> x term; context-> x output
     }
 
-    update_action_states();
     status_label_->setText("Application reset.");
 }
 
@@ -398,23 +363,19 @@ void MainWindow::exit_application() {
 } // use callback
 
 void MainWindow::update_action_states() {
-    workspace_widget_->set_build_corpus_enabled(
-        !closing_ && !builds_->busy() && !workspace_.documents().empty());
+    workspace_widget_->set_build_corpus_enabled(state_->can_build());
 
-    bool can_search = !closing_ && corpus_current_ && search_widget_->has_query();
+    bool can_search = state_->has_corpus() && search_widget_->has_query();
     search_widget_->set_search_enabled(can_search);
     context_widget_->set_build_context_enabled(can_search);
-    term_inspector_widget_->set_inspection_enabled(corpus_current_); //Inspect only requires corpus = true.
+    term_inspector_widget_->set_inspection_enabled(state_->has_corpus());
 }
 
 void MainWindow::invalidate_corpus() {
     // Invalidate old corpus
-    builds_->request_cancel();
     processing_core_.reset();
-    corpus_current_ = false;
     workspace_widget_->set_corpus_status("Corpus: Not built");
     clear_processing_outputs();
-    update_action_states();
 }
 
 void MainWindow::clear_processing_outputs() {

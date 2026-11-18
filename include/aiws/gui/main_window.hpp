@@ -11,7 +11,6 @@ class QCloseEvent;
 class QLabel;
 class QPushButton;
 class QString;
-class QTimer;
 class QWidget;
 
 namespace aiws::gui {
@@ -79,7 +78,7 @@ protected:
     // change: add, remove, or redesign private members, slots, and helpers.
 
 private slots:
-    void poll_build();
+    void build_finished(aiws::BuildOutcome outcome);
     void add_document_text(const QString& path, const QString& text);
     /** @brief Handles a request to select and add a document to the workspace. */
     void add_document();
@@ -136,6 +135,11 @@ private slots:
     void exit_application();
 
 private:
+    class CorpusState;
+    void change_state(std::unique_ptr<CorpusState> next);
+    void clear_workspace();
+    void stop_workers();
+
     /**
      * @brief Updates availability of actions that depend on current application state.
      */
@@ -155,14 +159,12 @@ private:
     void clear_processing_outputs();
 
     Workspace workspace_;
-    std::unique_ptr<ProcessingCore> processing_core_;
+    std::shared_ptr<const ProcessingCore> processing_core_;
     std::unique_ptr<BuildController> builds_;
     std::unique_ptr<IpcServer> ipc_;
-    QTimer* build_timer_{nullptr};
+    std::unique_ptr<CorpusState> state_;
     std::uint64_t workspace_version_{0};
     int build_delay_ms_{0};
-    bool closing_{false};
-    bool corpus_current_{false};
     ExitCallback exit_callback_{nullptr};
 
     WorkspaceWidget* workspace_widget_{nullptr};

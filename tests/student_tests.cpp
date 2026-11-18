@@ -12,6 +12,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTableView>
@@ -21,11 +22,13 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
-#include <thread>
 
 using aiws::BuildController;
+using aiws::BuildOutcome;
 using aiws::ProcessingCore;
 using aiws::Workspace;
 using aiws::gui::MainWindow;
@@ -34,12 +37,78 @@ using aiws::gui::WorkspaceWidget;
 
 namespace {
 
+class BuildEvents final : public QObject {
+    Q_OBJECT
+
+public:
+    explicit BuildEvents(BuildController& builds)
+        : starts(this, &BuildEvents::started), finishes(this, &BuildEvents::finished) {
+        connect(&builds, &BuildController::started, this, &BuildEvents::started,
+                Qt::QueuedConnection);
+        connect(&builds, &BuildController::finished, this, &BuildEvents::finished,
+                Qt::QueuedConnection);
+    }
+
+    bool next_start(quint64 version) {
+        if (starts.isEmpty() && !starts.wait(2000)) {
+            return false;
+        }
+        return starts.takeFirst().front().toULongLong() == version;
+    }
+
+    bool next_finish(BuildOutcome* result = nullptr, int timeout = 2000) {
+        if (finishes.isEmpty() && !finishes.wait(timeout)) {
+            return false;
+        }
+        auto outcome = finishes.takeFirst().front().value<BuildOutcome>();
+        if (result) {
+            *result = std::move(outcome);
+        }
+        return true;
+    }
+
+    QSignalSpy starts;
+    QSignalSpy finishes;
+
+signals:
+    void started(quint64 version);
+    void finished(aiws::BuildOutcome outcome);
+};
+
+// Coordinate event order
+class TestLatch final : public QObject {
+public:
+    void release() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        released_ = true;
+        changed_.notify_one();
+    }
+
+    bool wait() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        return changed_.wait_for(lock, std::chrono::seconds(2),
+                                 [this] { return released_; });
+    }
+
+    void hold_first(quint64 version) {
+        if (version == 1) {
+            wait();
+        }
+    }
+
+private:
+    std::mutex mutex_;
+    std::condition_variable changed_;
+    bool released_{false};
+};
+
 struct WindowFixture {
     explicit WindowFixture(BuildController::BuildTask task = nullptr)
         : WindowFixture(std::make_unique<BuildController>(std::move(task))) {}
 
     BuildController* builds;
     MainWindow window;
+    BuildEvents events;
 
     QPushButton* button(const QString& text) {
         for (auto* candidate : window.findChildren<QPushButton*>()) {
@@ -71,19 +140,8 @@ struct WindowFixture {
 
 private:
     explicit WindowFixture(std::unique_ptr<BuildController> controller)
-        : builds(controller.get()), window(std::move(controller)) {}
+        : builds(controller.get()), window(std::move(controller)), events(*builds) {}
 };
-
-// Do not pump GUI events here: the result must be ready but uncollected before
-// Add/Reset. This fixes the ordering without relying on a timer race.
-bool wait_for_ready(BuildController& builds) {
-    QElapsedTimer elapsed;
-    elapsed.start();
-    while (!builds.ready() && elapsed.elapsed() < 3000) {
-        QTest::qSleep(1);
-    }
-    return builds.ready();
-}
 
 void accept_exit(QWidget* parent) {
     parent->close();
@@ -97,8 +155,7 @@ std::unique_ptr<ProcessingCore> plain_build(const Workspace& workspace) {
     return core;
 }
 
-// These functions stand in for a failing or slow build. Function pointers
-// let the tests exercise the same controller and GUI path as the real build.
+// Inject build failures
 std::atomic<int> test_attempts{0};
 
 std::unique_ptr<ProcessingCore> fail_first_build(
@@ -114,13 +171,26 @@ std::unique_ptr<ProcessingCore> unknown_failure(
     throw 42;
 }
 
-std::unique_ptr<ProcessingCore> wait_for_cancellation(
-    const Workspace& workspace, int, const std::atomic<bool>& cancel) {
-    test_attempts.fetch_add(1);
-    while (!cancel.load()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+std::unique_ptr<ProcessingCore> count_worker_builds(
+    const Workspace& workspace, int, const std::atomic<bool>&) {
+    thread_local int builds_on_this_thread = 0;
+    test_attempts.store(++builds_on_this_thread);
     return plain_build(workspace);
+}
+
+int idle_exit_after_build(const QString& file) {
+    WindowFixture f;
+    f.window.show();
+    if (!f.window.add_document_file(file)) {
+        return 1;
+    }
+    f.button("Build Corpus")->click();
+    if (!f.events.next_finish() || !f.button("Inspect")->isEnabled()) {
+        return 1;
+    }
+    f.window.set_exit_callback(&accept_exit);
+    f.button("Exit")->click();
+    return f.window.isVisible() ? 1 : 0;
 }
 
 }  // namespace
@@ -136,6 +206,19 @@ private slots:
                              "banana systems. Another document.");
         QVERIFY(!first_.isEmpty());
         QVERIFY(!second_.isEmpty());
+
+        // Bound idle shutdown
+        QProcess child;
+        child.start(QCoreApplication::applicationFilePath(), {"--idle-exit", first_});
+        QVERIFY2(child.waitForStarted(2000), qPrintable(child.errorString()));
+        const bool exited = child.waitForFinished(4000);
+        if (!exited) {
+            child.kill();
+            child.waitForFinished(1000);
+        }
+        QVERIFY2(exited, "idle_exit_after_build: Exit hung with an idle worker");
+        QCOMPARE(child.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(child.exitCode(), 0);
     }
 
     void initial_state_and_file_validation() {
@@ -162,7 +245,7 @@ private slots:
         QVERIFY(f.window.add_document_file(second_));
         f.query()->setText("banana");
         f.button("Build Corpus")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 3000);
+        QVERIFY(f.events.next_finish());
         QCOMPARE(f.corpus_status(), QString("Corpus: 2 chunks"));
         QVERIFY(f.button("Search")->isEnabled());
         QVERIFY(f.button("Inspect")->isEnabled());
@@ -199,18 +282,17 @@ private slots:
         elapsed.start();
         f.button("Build Corpus")->click();
         QVERIFY(elapsed.elapsed() < 150);
-        QVERIFY(f.builds->busy());
+        QVERIFY(f.events.next_start(2));
         QVERIFY(!f.button("Build Corpus")->isEnabled());
         QVERIFY(f.button("Add Document")->isEnabled());
         QVERIFY(f.button("Reset")->isEnabled());
         QVERIFY(f.button("Exit")->isEnabled());
         f.query()->setText("apple");
         f.window.findChild<WorkspaceWidget*>()->select_document(0);
-        QTest::qWait(100);
-        QVERIFY(ticks.count() >= 3);
-        QVERIFY(f.builds->busy());
+        QVERIFY(ticks.wait(150));
+        QVERIFY(!f.button("Inspect")->isEnabled());
         QCOMPARE(f.query()->text(), QString("apple"));
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 3000);
+        QVERIFY(f.events.next_finish());
         QVERIFY(elapsed.elapsed() >= 500);
         QVERIFY(f.button("Search")->isEnabled());
     }
@@ -221,15 +303,16 @@ private slots:
         f.window.set_build_delay_ms(1000);
         f.query()->setText("banana");
         f.button("Build Corpus")->click();
+        QVERIFY(f.events.next_start(1));
         QVERIFY(f.window.add_document_file(second_));
         QVERIFY(!f.button("Search")->isEnabled());
         QVERIFY(!f.button("Inspect")->isEnabled());
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 2000);
+        QVERIFY(f.events.next_finish());
         QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
         QVERIFY(!f.button("Search")->isEnabled());
         f.window.set_build_delay_ms(0);
         f.button("Build Corpus")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 2000);
+        QVERIFY(f.events.next_finish());
         f.button("Search")->click();
         QCOMPARE(f.window.findChild<QTableView*>()->model()->rowCount(), 1);
     }
@@ -239,56 +322,87 @@ private slots:
         QVERIFY(f.window.add_document_file(first_));
         f.window.set_build_delay_ms(1000);
         f.button("Build Corpus")->click();
+        QVERIFY(f.events.next_start(1));
         f.button("Reset")->click();
         QCOMPARE(f.window.findChild<QListWidget*>()->count(), 0);
         QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
         QVERIFY(!f.button("Search")->isEnabled());
         QVERIFY(!f.button("Inspect")->isEnabled());
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 2000);
+        QVERIFY(f.events.next_finish());
         QVERIFY(!f.button("Build Corpus")->isEnabled());
         QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
     }
 
-    void finished_build_after_add_is_discarded() {
+    void finished_build_before_workspace_change_data() {
+        QTest::addColumn<bool>("reset");
+        QTest::newRow("add") << false;
+        QTest::newRow("reset and re-add") << true;
+    }
+
+    void finished_build_before_workspace_change() {
+        QFETCH(bool, reset);
+        TestLatch ready;
         WindowFixture f;
+        connect(f.builds, &BuildController::finished, &ready, &TestLatch::release,
+                Qt::DirectConnection);
         QVERIFY(f.window.add_document_file(first_));
         f.query()->setText("apple");
         f.button("Build Corpus")->click();
-        QVERIFY(wait_for_ready(*f.builds));
+        QVERIFY(ready.wait());
+        if (reset) {
+            f.button("Reset")->click();
+        }
         QVERIFY(f.window.add_document_file(second_));
-        QVERIFY(QMetaObject::invokeMethod(&f.window, "poll_build", Qt::DirectConnection));
-        QVERIFY(!f.builds->busy());
-        QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
-        QVERIFY(!f.button("Search")->isEnabled());
-        QVERIFY(!f.button("Inspect")->isEnabled());
-        QVERIFY(!f.button("Build Context")->isEnabled());
-    }
-
-    void finished_build_after_reset_is_discarded() {
-        WindowFixture f;
-        QVERIFY(f.window.add_document_file(first_));
-        f.button("Build Corpus")->click();
-        QVERIFY(wait_for_ready(*f.builds));
-        f.button("Reset")->click();
-        QVERIFY(QMetaObject::invokeMethod(&f.window, "poll_build", Qt::DirectConnection));
-        QVERIFY(!f.builds->busy());
-        QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
-        QVERIFY(!f.button("Inspect")->isEnabled());
-    }
-
-    void reset_and_readd_cannot_reuse_old_version() {
-        WindowFixture f;
-        QVERIFY(f.window.add_document_file(first_));
-        f.button("Build Corpus")->click();
-        QVERIFY(wait_for_ready(*f.builds));
-        f.button("Reset")->click();
-        QVERIFY(f.window.add_document_file(second_));
-        QVERIFY(QMetaObject::invokeMethod(&f.window, "poll_build", Qt::DirectConnection));
-        QVERIFY(!f.button("Inspect")->isEnabled());
-        QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
-        f.button("Build Corpus")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 2000);
+        if (reset) {
+            f.button("Build Corpus")->click();
+        }
+        BuildOutcome old;
+        QVERIFY(f.events.next_finish(&old));
+        QCOMPARE(old.workspace_version, std::uint64_t(1));
+        QVERIFY(old.corpus);
+        if (!reset) {
+            QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
+            QVERIFY(!f.button("Search")->isEnabled());
+            QVERIFY(!f.button("Inspect")->isEnabled());
+            QVERIFY(!f.button("Build Context")->isEnabled());
+            f.button("Build Corpus")->click();
+        }
+        BuildOutcome current;
+        QVERIFY(f.events.next_finish(&current));
+        QVERIFY(current.workspace_version > old.workspace_version);
         f.query()->setText("banana");
+        f.button("Search")->click();
+        QCOMPARE(f.window.findChild<QTableView*>()->model()->rowCount(), 1);
+    }
+
+    void reset_rebuild_skips_remaining_documents() {
+        WindowFixture f;
+        for (int i = 0; i < 10; ++i) {
+            const QString name = QString("old-%1.txt").arg(i);
+            QVERIFY(f.window.add_document_file(write_file(name, "old corpus")));
+        }
+        f.window.set_build_delay_ms(200);
+        f.button("Build Corpus")->click();
+        QVERIFY(f.events.next_start(10));
+        QElapsedTimer elapsed;
+        elapsed.start();
+        f.button("Reset")->click();
+        QVERIFY(f.window.add_document_file(second_));
+        f.window.set_build_delay_ms(0);
+        f.query()->setText("banana");
+        QVERIFY(f.button("Build Corpus")->isEnabled());
+        f.button("Build Corpus")->click();
+        BuildOutcome old;
+        BuildOutcome current;
+        const int deadline_ms = 650;
+        const bool replaced = f.events.next_finish(&old, deadline_ms)
+                           && elapsed.elapsed() < deadline_ms
+                           && f.events.next_finish(&current, deadline_ms - elapsed.elapsed());
+        QVERIFY2(replaced && f.button("Search")->isEnabled(),
+                 "The replacement corpus was not searchable promptly after Reset");
+        QCOMPARE(old.workspace_version, std::uint64_t(10));
+        QVERIFY(current.workspace_version > old.workspace_version);
+        QVERIFY(elapsed.elapsed() < deadline_ms);
         f.button("Search")->click();
         QCOMPARE(f.window.findChild<QTableView*>()->model()->rowCount(), 1);
     }
@@ -299,7 +413,7 @@ private slots:
         QVERIFY(f.window.add_document_file(first_));
         f.query()->setText("apple");
         f.button("Build Corpus")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        QVERIFY(f.events.next_finish());
         QVERIFY(f.status()->text().contains("Build failed: test build failed"));
         QVERIFY(f.button("Build Corpus")->isEnabled());
         QVERIFY(!f.button("Search")->isEnabled());
@@ -307,7 +421,7 @@ private slots:
         QVERIFY(!f.button("Build Context")->isEnabled());
         QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
         f.button("Build Corpus")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        QVERIFY(f.events.next_finish());
         QVERIFY(f.button("Search")->isEnabled());
         QVERIFY(f.button("Inspect")->isEnabled());
         QVERIFY(f.button("Build Context")->isEnabled());
@@ -317,14 +431,14 @@ private slots:
         test_attempts.store(0);
         f.button("Build Corpus")->click();
         QVERIFY(!f.button("Search")->isEnabled());
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        QVERIFY(f.events.next_finish());
         QVERIFY(f.status()->text().contains("Build failed: test build failed"));
         QVERIFY(!f.button("Search")->isEnabled());
         QVERIFY(!f.button("Inspect")->isEnabled());
         QVERIFY(!f.button("Build Context")->isEnabled());
         QVERIFY(f.button("Build Corpus")->isEnabled());
         f.button("Build Corpus")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        QVERIFY(f.events.next_finish());
         f.button("Search")->click();
         QCOMPARE(f.window.findChild<QTableView*>()->model()->rowCount(), 1);
     }
@@ -333,23 +447,34 @@ private slots:
         WindowFixture f(&unknown_failure);
         QVERIFY(f.window.add_document_file(first_));
         f.button("Build Corpus")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+        QVERIFY(f.events.next_finish());
         QVERIFY(f.status()->text().contains("Unknown build failure"));
         QVERIFY(f.button("Build Corpus")->isEnabled());
     }
 
-    void repeated_build_requests_do_not_overlap() {
-        test_attempts.store(0);
-        WindowFixture f(&wait_for_cancellation);
-        QVERIFY(f.window.add_document_file(first_));
-        f.button("Build Corpus")->click();
-        QVERIFY(!f.button("Build Corpus")->isEnabled());
-        for (int i = 0; i < 10; ++i) {
-            QVERIFY(QMetaObject::invokeMethod(&f.window, "build_corpus", Qt::DirectConnection));
-        }
-        f.button("Reset")->click();
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
-        QCOMPARE(test_attempts.load(), 1);
+    void one_worker_builds_only_the_latest_request() {
+        Workspace workspace;
+        workspace.add_document(aiws::Document("a", "A", "apple"));
+        TestLatch release;
+        BuildController builds(&count_worker_builds);
+        BuildEvents events(builds);
+        connect(&builds, &BuildController::started, &release, &TestLatch::hold_first,
+                Qt::DirectConnection);
+        builds.start(workspace, 1, 0);
+        QVERIFY(events.next_start(1));
+        builds.start(workspace, 2, 0);
+        builds.start(workspace, 3, 0);
+        release.release();
+        BuildOutcome first;
+        QVERIFY(events.next_finish(&first));
+        QCOMPARE(first.workspace_version, std::uint64_t(1));
+        QVERIFY(events.next_start(3));
+        BuildOutcome latest;
+        QVERIFY(events.next_finish(&latest));
+        QCOMPARE(latest.workspace_version, std::uint64_t(3));
+        QVERIFY(latest.corpus);
+        QCOMPARE(test_attempts.load(), 2);
+        QVERIFY(events.starts.isEmpty());
     }
 
     void default_worker_matches_processing_core() {
@@ -370,10 +495,10 @@ private slots:
         }
 
         BuildController builds;
-        QVERIFY(builds.start(workspace, 1, 0));
-        QVERIFY(wait_for_ready(builds));
-        aiws::BuildOutcome result;
-        QVERIFY(builds.poll(result));
+        BuildEvents events(builds);
+        builds.start(workspace, 1, 0);
+        BuildOutcome result;
+        QVERIFY(events.next_finish(&result));
         if (should_fail) {
             QVERIFY(!result.error.empty());
             QVERIFY(!result.corpus);
@@ -392,40 +517,38 @@ private slots:
     void worker_uses_private_snapshot_and_transfers_ownership() {
         Workspace workspace;
         workspace.add_document(aiws::Document("a", "A", "apple"));
-        std::unique_ptr<ProcessingCore> transferred;
+        std::shared_ptr<const ProcessingCore> transferred;
         {
             BuildController builds;
-            QVERIFY(builds.start(workspace, 17, 20));
+            BuildEvents events(builds);
+            builds.start(workspace, 17, 20);
             workspace.add_document(aiws::Document("b", "B", "banana"));
-            QVERIFY(!builds.start(workspace, 18, 0));
-            QVERIFY(wait_for_ready(builds));
-            aiws::BuildOutcome result;
-            QVERIFY(builds.poll(result));
+            BuildOutcome result;
+            QVERIFY(events.next_finish(&result));
             QCOMPARE(result.workspace_version, std::uint64_t(17));
             QVERIFY(result.error.empty());
             transferred = std::move(result.corpus);
-            QCOMPARE(transferred->chunk_count(), std::size_t(1));
-            QVERIFY(transferred->search("banana", 5).empty());
-            QVERIFY(!builds.busy());
+            QVERIFY(transferred);
         }
-        // The completed corpus does not borrow its former controller's flag.
-        transferred->rebuild(workspace);
-        QCOMPARE(transferred->chunk_count(), std::size_t(2));
+        QCOMPARE(transferred->chunk_count(), std::size_t(1));
+        QVERIFY(transferred->search("banana", 5).empty());
+        QCOMPARE(transferred->search("apple", 5).size(), std::size_t(1));
     }
 
-    void close_during_build_drains_without_blocking_gui() {
+    void exit_stops_active_build_promptly() {
         WindowFixture f;
         f.window.show();
         QVERIFY(f.window.add_document_file(first_));
-        f.window.set_build_delay_ms(2000);
+        QVERIFY(f.window.add_document_file(second_));
+        f.window.set_build_delay_ms(500);
         f.button("Build Corpus")->click();
+        QVERIFY(f.events.next_start(2));
         f.window.set_exit_callback(&accept_exit);
         QElapsedTimer elapsed;
         elapsed.start();
         f.button("Exit")->click();
-        QVERIFY(elapsed.elapsed() < 150);
-        QTRY_VERIFY_WITH_TIMEOUT(!f.window.isVisible(), 1500);
-        QVERIFY(!f.builds->busy());
+        QTRY_VERIFY_WITH_TIMEOUT(!f.window.isVisible(), 700);
+        QVERIFY(elapsed.elapsed() < 750);
     }
 
     void decline_exit_keeps_build_and_window_alive() {
@@ -437,8 +560,8 @@ private slots:
         f.button("Build Corpus")->click();
         f.button("Exit")->click();
         QVERIFY(f.window.isVisible());
-        QVERIFY(f.builds->busy());
-        QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 2000);
+        QVERIFY(!f.button("Inspect")->isEnabled());
+        QVERIFY(f.events.next_finish());
         QVERIFY(f.button("Inspect")->isEnabled());
         f.window.close();
     }
@@ -448,7 +571,7 @@ private slots:
         for (int i = 0; i < 12; ++i) {
             QVERIFY(f.window.add_document_file(first_));
             f.button("Build Corpus")->click();
-            QTRY_VERIFY_WITH_TIMEOUT(!f.builds->busy(), 1500);
+            QVERIFY(f.events.next_finish());
             QVERIFY(f.button("Inspect")->isEnabled());
             f.button("Reset")->click();
             QVERIFY(!f.button("Inspect")->isEnabled());
@@ -460,10 +583,12 @@ private slots:
         Workspace workspace;
         workspace.add_document(aiws::Document("a", "A", "apple"));
         QElapsedTimer elapsed;
-        elapsed.start();
         {
             BuildController builds;
-            QVERIFY(builds.start(workspace, 1, 10000));
+            BuildEvents events(builds);
+            builds.start(workspace, 1, 10000);
+            QVERIFY(events.next_start(1));
+            elapsed.start();
         }
         QVERIFY(elapsed.elapsed() < 500);
     }
@@ -483,5 +608,14 @@ private:
     QString second_;
 };
 
-QTEST_MAIN(StudentTests)
+int main(int argc, char** argv) {
+    QApplication app(argc, argv);
+    const QStringList args = app.arguments();
+    if (args.size() == 3 && args[1] == "--idle-exit") {
+        return idle_exit_after_build(args[2]);
+    }
+    StudentTests tests;
+    return QTest::qExec(&tests, argc, argv);
+}
+
 #include "student_tests.moc"

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ai_workspace_m4 LANGUAGES CXX)
+project(ai_workspace_m5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,9 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(Threads REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Test)
 set(CMAKE_AUTOMOC ON)
-
-# M4 starts from your own M3 project: copy your M3 src/ files here first.
-# Add your new M4 source files to the target where they belong.
 
 add_library(aiws_m2
     src/document.cpp
@@ -34,6 +31,8 @@ target_compile_options(aiws_ipc PRIVATE -Wall -Wextra -Wpedantic)
 
 add_library(aiws_app STATIC
     src/build_controller.cpp
+    src/corpus_state.cpp
+    include/aiws/build_controller.hpp
     src/ipc_server.cpp
     src/main_window.cpp
     src/workspace_widget.cpp
@@ -53,9 +52,9 @@ target_include_directories(aiws_app PUBLIC include)
 target_link_libraries(aiws_app PUBLIC aiws_m2 aiws_ipc Qt6::Widgets)
 target_compile_options(aiws_app PRIVATE -Wall -Wextra -Wpedantic)
 
-add_executable(ai_workspace_m4 src/main.cpp)
-target_link_libraries(ai_workspace_m4 PRIVATE aiws_app)
-target_compile_options(ai_workspace_m4 PRIVATE -Wall -Wextra -Wpedantic)
+add_executable(ai_workspace_m5 src/main.cpp)
+target_link_libraries(ai_workspace_m5 PRIVATE aiws_app)
+target_compile_options(ai_workspace_m5 PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(aiws_send tools/aiws_send.cpp)
 target_link_libraries(aiws_send PRIVATE aiws_ipc Qt6::Core)
@@ -72,4 +71,4 @@ target_link_libraries(ipc_tests PRIVATE aiws_app Qt6::Test)
 target_compile_options(ipc_tests PRIVATE -Wall -Wextra -Wpedantic)
 add_dependencies(ipc_tests aiws_send)
 add_test(NAME ipc_tests COMMAND ipc_tests)
-set_tests_properties(ipc_tests PROPERTIES TIMEOUT 60 ENVIRONMENT QT_QPA_PLATFORM=offscreen)
+set_tests_properties(ipc_tests PROPERTIES TIMEOUT 25 ENVIRONMENT QT_QPA_PLATFORM=offscreen)

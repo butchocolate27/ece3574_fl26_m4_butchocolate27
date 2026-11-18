@@ -1,78 +1,95 @@
 #include "aiws/build_controller.hpp"
-
 #include "document_build_step.hpp"
 
 #include <algorithm>
-#include <chrono>
-#include <exception>
 #include <stdexcept>
 #include <utility>
 
 namespace aiws {
-namespace {
 
-struct BuildCancelled {};
-
-void check_cancelled(const std::atomic<bool>& cancel) {
-    if (cancel.load()) {
-        throw BuildCancelled{};
-    }
+BuildController::BuildController(BuildTask task) : task_(task) {
+    qRegisterMetaType<BuildOutcome>();
 }
-
-std::unique_ptr<ProcessingCore> build_snapshot(
-    const Workspace& workspace, int delay_ms, const std::atomic<bool>& cancel) {
-    auto corpus = std::make_unique<ProcessingCore>();
-    const DocumentBuildStep step([delay_ms, &cancel] {
-        check_cancelled(cancel);
-        const auto deadline = std::chrono::steady_clock::now()
-                            + std::chrono::milliseconds(delay_ms);
-        while (std::chrono::steady_clock::now() < deadline) {
-            std::this_thread::sleep_until(std::min(
-                deadline, std::chrono::steady_clock::now()
-                        + std::chrono::milliseconds(5)));
-            check_cancelled(cancel);
-        }
-    });
-    corpus->rebuild(workspace);
-    check_cancelled(cancel);
-    return corpus;
-}
-
-}  // namespace
-
-BuildController::BuildController(BuildTask task)
-    : task_(task ? task : &build_snapshot) {}
 
 BuildController::~BuildController() {
-    request_cancel();
-    // Normal window closing drains the ready result before destruction. This
-    // also safely handles direct destruction by a caller outside the GUI flow.
-    if (worker_.joinable()) {
-        worker_.join();
+    shutdown();
+}
+
+void BuildController::start(Workspace snapshot, std::uint64_t version, int delay_ms) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (stopping_) {
+            throw std::logic_error("The build worker has stopped.");
+        }
+        if (!worker_.joinable()) {
+            worker_ = std::thread(&BuildController::run, this);
+        }
+        cancel_locked();
+        pending_ = Request{std::move(snapshot), version, std::max(0, delay_ms)};
+    }
+    changed_.notify_one();
+}
+
+void BuildController::cancel_locked() {
+    pending_.reset();
+#ifndef AIWS_FAULT_NO_CANCEL
+    cancelled_.store(true);
+#endif
+}
+
+void BuildController::request_cancel() {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        cancel_locked();
+    }
+    changed_.notify_one();
+}
+
+void BuildController::run() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    while (!stopping_) {
+        changed_.wait(lock, [this] {
+#ifdef AIWS_FAULT_SILENT_SHUTDOWN
+            return pending_.has_value();
+#else
+            return stopping_ || pending_.has_value();
+#endif
+        });
+        if (stopping_) {
+            return;
+        }
+
+        Request request = std::move(*pending_);
+        pending_.reset();
+        cancelled_.store(false);
+        lock.unlock();
+
+        emit started(request.version);
+        emit finished(build(request));
+
+        lock.lock();
     }
 }
 
-bool BuildController::start(Workspace snapshot, std::uint64_t version, int delay_ms) {
-    if (busy()) {
-        return false;
-    }
-    cancel_.store(false);
-    std::promise<BuildOutcome> promise;
-    result_ = promise.get_future();
-    worker_ = std::thread(&BuildController::run, this, std::move(snapshot),
-                          version, std::max(0, delay_ms), std::move(promise));
-    return true;
-}
-
-void BuildController::run(Workspace snapshot, std::uint64_t version, int delay_ms,
-                          std::promise<BuildOutcome> promise) {
+BuildOutcome BuildController::build(const Request& request) {
     BuildOutcome outcome;
-    outcome.workspace_version = version;
+    outcome.workspace_version = request.version;
     try {
-        outcome.corpus = task_(snapshot, delay_ms, cancel_);
-        if (!outcome.corpus) {
+        std::unique_ptr<ProcessingCore> corpus;
+        if (task_) {
+            corpus = task_(request.snapshot, request.delay_ms, cancelled_);
+        } else {
+            corpus = std::make_unique<ProcessingCore>();
+            DocumentBuildStep step(request.delay_ms, cancelled_, mutex_, changed_);
+            corpus->rebuild(request.snapshot);
+        }
+        if (cancelled_.load()) {
+            throw BuildCancelled{};
+        }
+        if (!corpus) {
             throw std::runtime_error("Build produced no corpus.");
         }
+        outcome.corpus = std::move(corpus);
     } catch (const BuildCancelled&) {
         outcome.cancelled = true;
     } catch (const std::exception& error) {
@@ -83,37 +100,20 @@ void BuildController::run(Workspace snapshot, std::uint64_t version, int delay_m
     } catch (...) {
         outcome.error = "Unknown build failure.";
     }
-    // The future becomes ready after the worker exits. The GUI can then join
-    // it without waiting for an unfinished build.
-    promise.set_value_at_thread_exit(std::move(outcome));
+    return outcome;
 }
 
-void BuildController::request_cancel() noexcept {
-    cancel_.store(true);
-}
-
-bool BuildController::busy() const noexcept {
-    return worker_.joinable();
-}
-
-bool BuildController::ready() const {
-    return busy() && result_.valid()
-        && result_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
-}
-
-bool BuildController::poll(BuildOutcome& outcome) {
-    if (!ready()) {
-        return false;
+void BuildController::shutdown() {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stopping_ = true;
+        cancelled_.store(true);
+        pending_.reset();
     }
-    outcome = result_.get();
-#ifdef AIWS_FAULT_LOSE_FAILURE
-    // Drop the completed failure and leave the application in Building.
-    if (!outcome.error.empty()) {
-        return false;
+    changed_.notify_one();
+    if (worker_.joinable()) {
+        worker_.join();
     }
-#endif
-    worker_.join();
-    return true;
 }
 
 }  // namespace aiws

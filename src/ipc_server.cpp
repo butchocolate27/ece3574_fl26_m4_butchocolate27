@@ -16,21 +16,17 @@
 #include <chrono>
 #include <cstring>
 #include <exception>
-#include <utility>
 
 namespace aiws {
 
 IpcServer::IpcServer(QObject* receiver) : receiver_(receiver) {}
 
 IpcServer::~IpcServer() {
-    request_stop();
-    if (worker_.joinable()) {
-        worker_.join();
-    }
+    stop();
 }
 
 bool IpcServer::start(const std::string& path, std::string& error) {
-    if (running()) {
+    if (worker_.joinable()) {
         error = "The IPC server is already running.";
         return false;
     }
@@ -68,10 +64,8 @@ bool IpcServer::start(const std::string& path, std::string& error) {
     }
     path_ = path;
     stop_.store(false);
-    std::promise<void> finished;
-    finished_ = finished.get_future();
     try {
-        worker_ = std::thread(&IpcServer::run, this, std::move(finished));
+        worker_ = std::thread(&IpcServer::run, this);
     } catch (const std::exception& failure) {
         error = failure.what();
         ::close(listener_);
@@ -82,24 +76,15 @@ bool IpcServer::start(const std::string& path, std::string& error) {
     return true;
 }
 
-void IpcServer::request_stop() {
+void IpcServer::stop() {
     stop_.store(true);
-}
-
-bool IpcServer::running() const {
-    return worker_.joinable();
-}
-
-void IpcServer::poll_stop() {
-    if (running() && finished_.wait_for(std::chrono::milliseconds(0))
-                         == std::future_status::ready) {
-        finished_.get();
+    if (worker_.joinable()) {
         worker_.join();
         listener_ = -1;
     }
 }
 
-void IpcServer::run(std::promise<void> finished) {
+void IpcServer::run() {
     while (!stop_.load()) {
         pollfd listener_poll{listener_, POLLIN, 0};
         const int result = ::poll(&listener_poll, 1, 50);
@@ -122,7 +107,6 @@ void IpcServer::run(std::promise<void> finished) {
     }
     ::close(listener_);
     ::unlink(path_.c_str());
-    finished.set_value_at_thread_exit();
 }
 
 void IpcServer::handle_client(int descriptor) {

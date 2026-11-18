@@ -1,5 +1,6 @@
 #include "aiws/corpus_index.hpp"
 #include "aiws/text_processor.hpp"
+#include "document_build_step.hpp"
 
 #include <stdexcept>
 #include <unordered_map>
@@ -15,6 +16,7 @@ void CorpusIndex::build(const std::vector<Chunk>& chunks) {
     chunk_by_id_.clear();
 
     for (std::size_t i = 0; i < chunks.size(); ++i) {
+        DocumentBuildStep::check_cancelled();
         const Chunk& chunk = chunks[i];
 
         if (!chunk_by_id_.emplace(chunk.id, i).second) {
