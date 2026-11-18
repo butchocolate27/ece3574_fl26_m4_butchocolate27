@@ -5,6 +5,7 @@
 #include "aiws/corpus_index.hpp"
 #include "aiws/retrieval_engine.hpp"
 #include "aiws/text_processor.hpp"
+#include "document_build_step.hpp"
 
 #include <stdexcept>
 #include <unordered_set>
@@ -73,6 +74,7 @@ void ProcessingCore::rebuild(const Workspace& workspace) {
     const auto& documents = workspace.documents();
 
     for (std::size_t order = 0; order < documents.size(); ++order) {
+        DocumentBuildStep::before_document();
         const auto& document = documents[order];
 
         if (!document_ids.insert(document.id()).second) {
