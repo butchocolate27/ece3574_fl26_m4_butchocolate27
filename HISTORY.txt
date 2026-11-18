@@ -1,3 +1,21 @@
+commit e13f4352109857b4c1e8279532a6b9cc32cdbe9e
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:32:44 -0500
+
+    Explain the worker and states in the design record
+
+ DESIGN.md | 56 +++++++++++++++++++++++++++-----------------------------
+ 1 file changed, 27 insertions(+), 29 deletions(-)
+
+commit d7ef0ea9f4dee884fd81592aada62afaf9cfc935
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:30:25 -0500
+
+    Record milestone development history
+
+ HISTORY.txt | 70 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 70 insertions(+)
+
 commit 89e395335060fb788dafee16d410b8afc6da04da
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-18 01:30:25 -0500
