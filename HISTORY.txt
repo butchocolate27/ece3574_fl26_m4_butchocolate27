@@ -1,3 +1,25 @@
+commit 681686ac79cab464deed5586bb3d1fbe4abcca59
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 04:32:53 -0500
+
+    Let the backend report duplicate document IDs on rebuild
+
+ DESIGN.md               |  2 +-
+ README.md               |  2 +-
+ src/main_window.cpp     |  7 -------
+ tests/ipc_tests.cpp     | 12 ++++++++----
+ tests/student_tests.cpp | 28 +++++++++++++++++++++++++++-
+ 5 files changed, 37 insertions(+), 14 deletions(-)
+
+commit 64f2aa46fd8ff0378284a6612f5d9441bd35c1d1
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:32:45 -0500
+
+    Refresh history after the design record
+
+ HISTORY.txt | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
 commit e13f4352109857b4c1e8279532a6b9cc32cdbe9e
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-18 01:32:44 -0500
