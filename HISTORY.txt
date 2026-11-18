@@ -1,3 +1,73 @@
+commit 89e395335060fb788dafee16d410b8afc6da04da
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:30:25 -0500
+
+    Add the walkthrough commands and design outline
+
+ DESIGN.md | 135 +++++++++++---------------------------------------------------
+ README.md | 106 +++++++++++++++---------------------------------
+ VIDEO.md  |   3 ++
+ 3 files changed, 57 insertions(+), 187 deletions(-)
+
+commit 813fe20be7c31cac911e5f7999d557684757d365
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:29:52 -0500
+
+    Finish active shutdown before posting a build result
+
+ src/build_controller.cpp | 38 ++++++++++++++++++++++----------------
+ 1 file changed, 22 insertions(+), 16 deletions(-)
+
+commit 16205f26ec5d0f94c994c8ff2a2987f8ff96df81
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:26:40 -0500
+
+    Keep the cancellation test deadline bounded
+
+ tests/student_tests.cpp | 13 +++++--------
+ 1 file changed, 5 insertions(+), 8 deletions(-)
+
+commit 1f9c897979d3cb08423115a60a327f636ddd6ac4
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:26:06 -0500
+
+    Reuse one build worker and handle corpus events with states
+
+ CMakeLists.txt                    |  15 +-
+ include/aiws/build_controller.hpp |  50 ++++--
+ include/aiws/gui/main_window.hpp  |  14 +-
+ include/aiws/ipc_server.hpp       |   8 +-
+ src/build_controller.cpp          | 152 ++++++++---------
+ src/corpus_index.cpp              |   2 +
+ src/corpus_state.cpp              | 101 ++++++++++++
+ src/corpus_state.hpp              |  33 ++++
+ src/document_build_step.hpp       |  33 +++-
+ src/ipc_server.cpp                |  28 +---
+ src/main_window.cpp               | 111 ++++---------
+ tests/student_tests.cpp           | 338 ++++++++++++++++++++++++++------------
+ 12 files changed, 565 insertions(+), 320 deletions(-)
+
+commit 90d16390b4c6522a8fe7810c05fdab6956774fa4
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-18 01:20:52 -0500
+
+    Run background builds through the default backend
+
+ src/build_controller.cpp    | 60 +++++++++++----------------------------------
+ src/document_build_step.hpp | 33 +++++++++++++++++++++++++
+ src/processing_core.cpp     |  2 ++
+ tests/student_tests.cpp     | 20 +++++++++++++++
+ 4 files changed, 69 insertions(+), 46 deletions(-)
+
+commit ac1c3d7f089060c13235b33e4440d03d6440fc59
+Author: Gary Jia <jzhan24@vt.edu>
+Date:   2026-11-08 23:55:43 -0500
+
+    Refresh history after R3 configuration fix
+
+ HISTORY.txt | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
 commit f483c49ca7603351f0ea5b2d47869c1d3a9d3629
 Author: Gary Jia <jzhan24@vt.edu>
 Date:   2026-11-08 23:55:43 -0500
