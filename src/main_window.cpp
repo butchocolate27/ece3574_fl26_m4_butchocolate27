@@ -192,13 +192,6 @@ void MainWindow::add_document_text(const QString& path, const QString& text) {
     }
     const QFileInfo info(path);
     const QString id = info.absoluteFilePath();
-    for (const Document& document : workspace_.documents()) {
-        if (document.id() == id.toStdString()) {
-            status_label_->setText("Document already added.");
-            return;
-        }
-    }
-
     workspace_.add_document(Document(id.toStdString(), info.fileName().toStdString(),
                                      text.toStdString()));
     ++workspace_version_;

@@ -1,6 +1,6 @@
 # M5 Design: Thread-Safe Build Worker
 
-**1. What I fixed in M4.** The old worker chose its own chunker and bypassed the default `ProcessingCore` constructor. When that constructor was set to fail, the GUI still showed “Corpus built.” Now `BuildController::build` uses the default constructor. On failure the GUI shows the error and returns to `Dirty`. A successful retry moves to `Current`.
+**1. What I fixed in M4.** The old worker bypassed the default `ProcessingCore` constructor, and the GUI skipped a second Add of the same path. Now `add_document_text` adds each readable file. `BuildController::build` uses the default backend, which reports duplicate IDs during rebuild. On failure the GUI shows the error, returns to `Dirty` and disables processing. Reset and add the file once to recover.
 
 **2. Shared data.** The GUI owns the window, Workspace and state objects. One build worker owns its snapshot and waits on `changed_` for a request or shutdown. Qt queues its read-only result and the IPC thread’s file contents for the GUI.
 

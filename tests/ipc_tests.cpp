@@ -188,16 +188,20 @@ private slots:
         QCOMPARE(table->model()->rowCount(), 1);
     }
 
-    void duplicate_add_keeps_current_corpus() {
+    void remote_duplicate_reaches_the_next_build() {
         IpcFixture f;
         const QString path = f.file("first.txt");
         QVERIFY(f.window.add_document_file(path));
         f.button("Build Corpus")->click();
         QTRY_VERIFY(f.button("Inspect")->isEnabled());
         QCOMPARE(send_file(f.socket_path, path).code, 0);
-        QTest::qWait(30);
-        QCOMPARE(f.documents()->count(), 1);
-        QVERIFY(f.button("Inspect")->isEnabled());
+        QTRY_COMPARE(f.documents()->count(), 2);
+        QVERIFY(!f.button("Inspect")->isEnabled());
+        f.button("Build Corpus")->click();
+        QTRY_VERIFY(f.button("Build Corpus")->isEnabled());
+        QVERIFY(!f.button("Inspect")->isEnabled());
+        auto* status = f.window.findChild<QLabel*>("applicationStatus");
+        QVERIFY(status && status->text().contains("duplicate document id"));
     }
 
     void request_split_across_writes_is_received() {

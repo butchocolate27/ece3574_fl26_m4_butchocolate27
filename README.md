@@ -24,7 +24,7 @@ From a second terminal in the same container, send a file to the running app.
 ./build-m5/aiws_send add data/public/doc_ai.txt
 ```
 
-Both programs accept `--ipc-socket PATH` (app) or `--socket PATH` (sender) for a separate session. The sender returns 0 when the file has been read and queued, 1 for a rejected request, or 2 for a connection error. A duplicate or unreadable file leaves the current corpus usable.
+Both programs accept `--ipc-socket PATH` (app) or `--socket PATH` (sender) for a separate session. The sender returns 0 when the file has been read and queued, 1 for a rejected request, or 2 for a connection error. An unreadable file leaves the Workspace alone. Adding the same path twice makes the next build report a duplicate document ID. Use Reset to start again.
 
 ## Walkthrough
 

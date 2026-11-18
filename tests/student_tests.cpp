@@ -236,8 +236,34 @@ private slots:
         QVERIFY(f.button("Build Corpus")->isEnabled());
         auto* list = f.window.findChild<QListWidget*>();
         QCOMPARE(list->count(), 1);
+    }
+
+    void duplicate_document_build_fails_and_reset_recovers() {
+        WindowFixture f;
+        f.query()->setText("apple");
         QVERIFY(f.window.add_document_file(first_));
-        QCOMPARE(list->count(), 1);
+        f.button("Build Corpus")->click();
+        QVERIFY(f.events.next_finish());
+        QVERIFY(f.button("Search")->isEnabled());
+
+        QVERIFY(f.window.add_document_file(first_));
+        f.button("Build Corpus")->click();
+        QVERIFY(f.events.next_finish());
+        QVERIFY(!f.button("Search")->isEnabled());
+        QVERIFY(!f.button("Inspect")->isEnabled());
+        QVERIFY(!f.button("Build Context")->isEnabled());
+        QVERIFY(f.status()->text().contains("duplicate document id"));
+        QCOMPARE(f.corpus_status(), QString("Corpus: Not built"));
+        QCOMPARE(f.window.findChild<QListWidget*>()->count(), 2);
+        QVERIFY(f.button("Build Corpus")->isEnabled());
+
+        f.button("Reset")->click();
+        QVERIFY(f.window.add_document_file(second_));
+        f.query()->setText("banana");
+        f.button("Build Corpus")->click();
+        QVERIFY(f.events.next_finish());
+        f.button("Search")->click();
+        QCOMPARE(f.window.findChild<QTableView*>()->model()->rowCount(), 1);
     }
 
     void builds_whole_workspace_and_preserves_m3_features() {
