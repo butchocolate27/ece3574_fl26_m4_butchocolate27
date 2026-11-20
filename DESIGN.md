@@ -34,4 +34,4 @@
 
 **6. Tests.** `AIWS_FAULT_NO_CANCEL` in `cancel_locked` keeps the worker busy with old documents. `reset_rebuild_skips_remaining_documents` starts with ten files and gives the replacement 650 ms to become searchable. `AIWS_FAULT_SILENT_SHUTDOWN` makes the idle wait in `run` ignore Exit. When the `idle_exit_after_build` child hangs in `join`, its parent fails after four seconds.
 
-**7. AI use.** I used ChatGPT to analyze the design, help implement the code and tests, debug Docker results, and check this write-up.
+**7. AI use.** I used ChatGPT to analyze the design, debug Docker results, and check this write-up.
